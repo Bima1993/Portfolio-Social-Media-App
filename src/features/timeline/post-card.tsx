@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Bookmark, Heart, MessageCircle, Send } from "lucide-react";
 
+import { formatRelativeTime } from "@/lib/date";
 import type { Post } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,8 @@ type PostCardProps = {
 };
 
 export function PostCard({ post }: PostCardProps) {
+  const caption = post.caption?.trim();
+
   return (
     <article className="border-b border-border pb-8">
       <header className="mb-3 flex items-center gap-3">
@@ -26,7 +29,7 @@ export function PostCard({ post }: PostCardProps) {
           <Link className="block truncate text-base font-bold text-foreground" href={`/profile/${post.author.username}`}>
             {post.author.name}
           </Link>
-          <p className="mt-0.5 text-sm text-muted-foreground">{post.createdAt}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{formatRelativeTime(post.createdAt)}</p>
         </div>
       </header>
 
@@ -66,10 +69,12 @@ export function PostCard({ post }: PostCardProps) {
         <Link className="block font-bold" href={`/profile/${post.author.username}`}>
           {post.author.name}
         </Link>
-        <p className="break-words text-foreground">{post.caption}</p>
-        <button className="text-base font-semibold text-primary" type="button">
-          Show More
-        </button>
+        {caption ? <p className="break-words text-foreground">{caption}</p> : null}
+        {caption && caption.length > 80 ? (
+          <button className="text-base font-semibold text-primary" type="button">
+            Show More
+          </button>
+        ) : null}
       </div>
     </article>
   );
