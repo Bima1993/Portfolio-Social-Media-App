@@ -4,8 +4,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Provider as ReduxProvider } from "react-redux";
 
-import { getStoredAuthToken } from "@/lib/api";
-import { setHydrated, setToken } from "@/store/auth-slice";
+import { getMe } from "@/features/profile/api";
+import { ApiError, clearStoredAuthToken, getStoredAuthToken } from "@/lib/api";
+import { clearSession, setHydrated, setToken, setUser } from "@/store/auth-slice";
 import { useAppDispatch } from "@/store/hooks";
 import { store } from "@/store";
 
@@ -13,8 +14,45 @@ function AuthBootstrapper() {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
-    dispatch(setToken(getStoredAuthToken()));
-    dispatch(setHydrated(true));
+    let isMounted = true;
+
+    async function bootstrapSession() {
+      const token = getStoredAuthToken();
+
+      if (!token) {
+        dispatch(clearSession());
+        dispatch(setHydrated(true));
+        return;
+      }
+
+      dispatch(setToken(token));
+
+      try {
+        const response = await getMe();
+
+        if (isMounted) {
+          dispatch(setUser(response.data));
+        }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          clearStoredAuthToken();
+
+          if (isMounted) {
+            dispatch(clearSession());
+          }
+        }
+      } finally {
+        if (isMounted) {
+          dispatch(setHydrated(true));
+        }
+      }
+    }
+
+    bootstrapSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, [dispatch]);
 
   return null;
