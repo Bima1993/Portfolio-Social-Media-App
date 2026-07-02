@@ -40,7 +40,6 @@ export function AppHeader() {
         <button
           aria-label="Search"
           className="absolute right-14 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-foreground transition-colors hover:bg-secondary sm:right-16 lg:hidden"
-          style={{ position: "fixed", right: 122, top: 12, transform: "none" }}
           type="button"
         >
           <Search className="size-5" />
@@ -81,7 +80,6 @@ export function AppHeader() {
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               className="absolute right-3 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-foreground transition-colors hover:bg-secondary sm:right-5 lg:hidden"
               onClick={() => setMenuOpen((current) => !current)}
-              style={{ position: "fixed", right: 78, top: 12, transform: "none" }}
               type="button"
             >
               {menuOpen ? <X className="size-6" /> : <Menu className="size-7" />}
@@ -99,10 +97,14 @@ export function AppHeader() {
         <div className="overflow-hidden">
           <div className="grid grid-cols-2 gap-3 py-3">
             <Button asChild className="h-10 rounded-full border-border bg-background text-sm font-bold" variant="outline">
-              <Link href="/login">Login</Link>
+              <Link href="/login" onClick={() => setMenuOpen(false)}>
+                Login
+              </Link>
             </Button>
             <Button asChild className="h-10 rounded-full bg-primary text-sm font-bold">
-              <Link href="/register">Register</Link>
+              <Link href="/register" onClick={() => setMenuOpen(false)}>
+                Register
+              </Link>
             </Button>
           </div>
         </div>

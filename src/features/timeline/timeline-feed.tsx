@@ -4,13 +4,18 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { getFeed } from "@/features/feed/api";
 import { getExplorePosts } from "@/features/posts/api";
+import { useAppSelector } from "@/store/hooks";
 
 import { PostCard } from "./post-card";
 
 const TIMELINE_PAGE_SIZE = 10;
 
 export function TimelineFeed() {
+  const { hydrated, token } = useAppSelector((state) => state.auth);
+  const isAuthenticated = hydrated && Boolean(token);
+  const timelineSource = isAuthenticated ? "feed" : "explore-posts";
   const {
     data,
     error,
@@ -21,8 +26,12 @@ export function TimelineFeed() {
     isPending,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["timeline", "explore-posts"],
-    queryFn: ({ pageParam }) => getExplorePosts(pageParam, TIMELINE_PAGE_SIZE),
+    queryKey: ["timeline", timelineSource],
+    queryFn: ({ pageParam }) =>
+      isAuthenticated
+        ? getFeed(Number(pageParam), TIMELINE_PAGE_SIZE)
+        : getExplorePosts(Number(pageParam), TIMELINE_PAGE_SIZE),
+    enabled: hydrated,
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       const { page, totalPages } = lastPage.data.pagination;
