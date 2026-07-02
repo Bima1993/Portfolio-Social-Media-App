@@ -1,16 +1,24 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { register as registerAccount } from "@/features/auth/api";
+import { getAuthErrorMessage } from "@/features/auth/errors";
 import { registerFormSchema, type RegisterFormValues } from "@/features/auth/schemas";
+import { setToken, setUser } from "@/store/auth-slice";
+import { useAppDispatch } from "@/store/hooks";
 
 import { AuthField } from "./auth-field";
 import { AuthShell } from "./auth-shell";
 
 export function RegisterForm() {
+  const dispatch = useAppDispatch();
+  const router = useRouter();
   const {
     formState: { errors },
     handleSubmit,
@@ -18,10 +26,28 @@ export function RegisterForm() {
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerFormSchema),
   });
+  const registerMutation = useMutation({
+    mutationFn: registerAccount,
+    onSuccess(response) {
+      dispatch(setToken(response.data.token));
+      dispatch(setUser(response.data.user ?? null));
+      router.replace("/");
+    },
+  });
+
+  function onSubmit(values: RegisterFormValues) {
+    registerMutation.mutate({
+      email: values.email,
+      name: values.name,
+      password: values.password,
+      phone: values.phone?.trim() || undefined,
+      username: values.username,
+    });
+  }
 
   return (
     <AuthShell title="Register">
-      <form className="mt-7 space-y-5 sm:mt-9 sm:space-y-7" onSubmit={handleSubmit(() => undefined)}>
+      <form className="mt-7 space-y-5 sm:mt-9 sm:space-y-7" onSubmit={handleSubmit(onSubmit)}>
         <AuthField
           autoComplete="name"
           error={errors.name}
@@ -69,8 +95,18 @@ export function RegisterForm() {
           type="password"
         />
 
-        <Button className="h-12 w-full rounded-full bg-primary text-base font-bold" type="submit">
-          Submit
+        {registerMutation.isError ? (
+          <p className="text-sm font-medium text-[#d51b62]" role="alert">
+            {getAuthErrorMessage(registerMutation.error)}
+          </p>
+        ) : null}
+
+        <Button
+          className="h-12 w-full rounded-full bg-primary text-base font-bold"
+          disabled={registerMutation.isPending}
+          type="submit"
+        >
+          {registerMutation.isPending ? "Submitting..." : "Submit"}
         </Button>
       </form>
 

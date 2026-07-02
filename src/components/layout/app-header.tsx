@@ -2,23 +2,20 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Menu, Search, X } from "lucide-react";
+import { Menu, Search, UserRound, X } from "lucide-react";
 import { useState } from "react";
 
 import { SocialityLogo } from "@/components/brand/sociality-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-
-const demoViewer = {
-  name: "John Doe",
-  avatarUrl:
-    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80",
-};
+import { useAppSelector } from "@/store/hooks";
 
 export function AppHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const isAuthenticated = false;
+  const { hydrated, token, user } = useAppSelector((state) => state.auth);
+  const isAuthenticated = hydrated && Boolean(token);
+  const viewerName = user?.name ?? user?.username ?? "Profile";
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
@@ -54,14 +51,20 @@ export function AppHeader() {
             className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-4 sm:right-6 lg:static lg:translate-y-0"
             href="/me"
           >
-            <Image
-              alt={demoViewer.name}
-              className="size-10 rounded-full object-cover lg:size-12"
-              height={40}
-              src={demoViewer.avatarUrl}
-              width={40}
-            />
-            <span className="hidden text-base font-bold lg:inline">{demoViewer.name}</span>
+            {user?.avatarUrl ? (
+              <Image
+                alt={viewerName}
+                className="size-10 rounded-full object-cover lg:size-12"
+                height={40}
+                src={user.avatarUrl}
+                width={40}
+              />
+            ) : (
+              <span className="flex size-10 items-center justify-center rounded-full bg-secondary text-foreground lg:size-12">
+                <UserRound className="size-5 lg:size-6" />
+              </span>
+            )}
+            <span className="hidden text-base font-bold lg:inline">{viewerName}</span>
           </Link>
         ) : (
           <>
