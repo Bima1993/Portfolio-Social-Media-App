@@ -1,4 +1,8 @@
 export const queryKeys = {
+  postComments: {
+    all: ["post-comments"] as const,
+    list: (postId: number | string) => [...queryKeys.postComments.all, postId] as const,
+  },
   postLikes: {
     all: ["post-likes"] as const,
     list: (postId: number | string) => [...queryKeys.postLikes.all, postId] as const,

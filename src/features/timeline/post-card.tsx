@@ -10,6 +10,7 @@ import type { Post } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { LikesDialog } from "./likes-dialog";
+import { CommentsDialog } from "./comments-dialog";
 import { usePostActions } from "./use-post-actions";
 
 type PostCardProps = {
@@ -18,6 +19,7 @@ type PostCardProps = {
 
 export function PostCard({ post }: PostCardProps) {
   const [likesOpen, setLikesOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const caption = post.caption?.trim();
   const { isLikePending, isSavePending, savedByMe, toggleLike, toggleSave } = usePostActions(post);
 
@@ -48,7 +50,12 @@ export function PostCard({ post }: PostCardProps) {
           </div>
         </header>
 
-        <Link className="relative block aspect-square overflow-hidden rounded-lg bg-secondary" href={`/posts/${post.id}`}>
+        <button
+          aria-label="View comments"
+          className="relative block aspect-square w-full overflow-hidden rounded-lg bg-secondary"
+          onClick={() => setCommentsOpen(true)}
+          type="button"
+        >
           <Image
             alt={post.caption ?? "Sociality post image"}
             className="object-cover"
@@ -57,7 +64,7 @@ export function PostCard({ post }: PostCardProps) {
             sizes="(max-width: 640px) calc(100vw - 32px), 600px"
             src={post.imageUrl}
           />
-        </Link>
+        </button>
 
         <div className="mt-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -80,14 +87,15 @@ export function PostCard({ post }: PostCardProps) {
                 {post.likeCount}
               </button>
             </div>
-            <Link
+            <button
               aria-label="View comments"
               className="flex items-center gap-2 text-sm font-semibold transition-colors hover:text-primary"
-              href={`/posts/${post.id}`}
+              onClick={() => setCommentsOpen(true)}
+              type="button"
             >
               <MessageCircle className="size-6" />
               {post.commentCount}
-            </Link>
+            </button>
             <button
               className="flex items-center gap-2 text-sm font-semibold transition-colors hover:text-primary"
               type="button"
@@ -123,6 +131,7 @@ export function PostCard({ post }: PostCardProps) {
       </article>
 
       <LikesDialog onOpenChange={setLikesOpen} open={likesOpen} postId={post.id} />
+      <CommentsDialog onOpenChange={setCommentsOpen} open={commentsOpen} post={post} />
     </>
   );
 }
