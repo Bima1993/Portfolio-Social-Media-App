@@ -5,21 +5,19 @@ import { Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { getFeed } from "@/features/feed/api";
 import { getExplorePosts } from "@/features/posts/api";
 import { POST_SUCCESS_STORAGE_KEY } from "@/lib/constants";
-import { queryKeys, type TimelineSource } from "@/lib/query-keys";
+import { queryKeys } from "@/lib/query-keys";
 import { useAppSelector } from "@/store/hooks";
 
+import { getNextTimelinePageParam, getTimelinePosts } from "./timeline-data";
 import { PostCard } from "./post-card";
 
 const TIMELINE_PAGE_SIZE = 10;
 
 export function TimelineFeed() {
   const [showPostSuccess, setShowPostSuccess] = useState(false);
-  const { hydrated, token } = useAppSelector((state) => state.auth);
-  const isAuthenticated = hydrated && Boolean(token);
-  const timelineSource: TimelineSource = isAuthenticated ? "feed" : "explore-posts";
+  const hydrated = useAppSelector((state) => state.auth.hydrated);
   const {
     data,
     error,
@@ -30,21 +28,14 @@ export function TimelineFeed() {
     isPending,
     refetch,
   } = useInfiniteQuery({
-    queryKey: queryKeys.timeline.list(timelineSource),
-    queryFn: ({ pageParam }) =>
-      isAuthenticated
-        ? getFeed(Number(pageParam), TIMELINE_PAGE_SIZE)
-        : getExplorePosts(Number(pageParam), TIMELINE_PAGE_SIZE),
+    queryKey: queryKeys.timeline.list("explore-posts"),
+    queryFn: ({ pageParam }) => getExplorePosts(Number(pageParam), TIMELINE_PAGE_SIZE),
     enabled: hydrated,
     initialPageParam: 1,
-    getNextPageParam: (lastPage) => {
-      const { page, totalPages } = lastPage.data.pagination;
-
-      return page < totalPages ? page + 1 : undefined;
-    },
+    getNextPageParam: getNextTimelinePageParam,
   });
 
-  const posts = data?.pages.flatMap((page) => page.data.posts) ?? [];
+  const posts = data?.pages.flatMap(getTimelinePosts) ?? [];
 
   useEffect(() => {
     if (window.sessionStorage.getItem(POST_SUCCESS_STORAGE_KEY) !== "1") {

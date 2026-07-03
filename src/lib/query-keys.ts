@@ -9,4 +9,4 @@ export const queryKeys = {
   },
 };
 
-export type TimelineSource = "explore-posts" | "feed";
+export type TimelineSource = "explore-posts";
