@@ -1,5 +1,6 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 
+import { queryKeys } from "@/lib/query-keys";
 import type { ApiResponse, PaginatedPosts, Post } from "@/lib/types";
 
 export type TimelineInfiniteData = InfiniteData<ApiResponse<PaginatedPosts>, number>;
@@ -47,7 +48,7 @@ export function updateTimelinePostQueries(
   postId: Post["id"],
   updatePost: (post: Post) => Post,
 ) {
-  queryClient.setQueriesData<TimelineInfiniteData>({ queryKey: ["timeline"] }, (data) =>
+  queryClient.setQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.timeline.all }, (data) =>
     updatePostInTimelineData(data, postId, updatePost),
   );
 }

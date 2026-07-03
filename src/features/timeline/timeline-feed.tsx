@@ -1,11 +1,14 @@
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { getFeed } from "@/features/feed/api";
 import { getExplorePosts } from "@/features/posts/api";
+import { POST_SUCCESS_STORAGE_KEY } from "@/lib/constants";
+import { queryKeys, type TimelineSource } from "@/lib/query-keys";
 import { useAppSelector } from "@/store/hooks";
 
 import { PostCard } from "./post-card";
@@ -13,9 +16,10 @@ import { PostCard } from "./post-card";
 const TIMELINE_PAGE_SIZE = 10;
 
 export function TimelineFeed() {
+  const [showPostSuccess, setShowPostSuccess] = useState(false);
   const { hydrated, token } = useAppSelector((state) => state.auth);
   const isAuthenticated = hydrated && Boolean(token);
-  const timelineSource = isAuthenticated ? "feed" : "explore-posts";
+  const timelineSource: TimelineSource = isAuthenticated ? "feed" : "explore-posts";
   const {
     data,
     error,
@@ -26,7 +30,7 @@ export function TimelineFeed() {
     isPending,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["timeline", timelineSource],
+    queryKey: queryKeys.timeline.list(timelineSource),
     queryFn: ({ pageParam }) =>
       isAuthenticated
         ? getFeed(Number(pageParam), TIMELINE_PAGE_SIZE)
@@ -42,8 +46,30 @@ export function TimelineFeed() {
 
   const posts = data?.pages.flatMap((page) => page.data.posts) ?? [];
 
+  useEffect(() => {
+    if (window.sessionStorage.getItem(POST_SUCCESS_STORAGE_KEY) !== "1") {
+      return;
+    }
+
+    window.sessionStorage.removeItem(POST_SUCCESS_STORAGE_KEY);
+
+    const showTimeoutId = window.setTimeout(() => {
+      setShowPostSuccess(true);
+    }, 0);
+    const timeoutId = window.setTimeout(() => {
+      setShowPostSuccess(false);
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(showTimeoutId);
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
+
   return (
     <section className="mx-auto w-full max-w-[632px] px-4 pb-28 pt-4 sm:pt-8 lg:pb-16 lg:pt-10">
+      {showPostSuccess ? <PostSuccessToast onClose={() => setShowPostSuccess(false)} /> : null}
+
       {isPending ? <TimelineSkeleton /> : null}
 
       {isError ? (
@@ -89,6 +115,22 @@ export function TimelineFeed() {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function PostSuccessToast({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed left-4 right-4 top-[86px] z-[70] flex h-10 items-center justify-between rounded-lg bg-[#0f9f59] px-4 text-sm font-bold text-white shadow-xl shadow-black/30 sm:left-auto sm:right-6 sm:w-[292px] lg:right-24 lg:top-28">
+      <span>Success Post</span>
+      <button
+        aria-label="Close success post notification"
+        className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+        onClick={onClose}
+        type="button"
+      >
+        <X className="size-5" />
+      </button>
+    </div>
   );
 }
 

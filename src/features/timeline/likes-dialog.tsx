@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { followUser, getPostLikes, unfollowUser } from "@/features/social/api";
+import { queryKeys } from "@/lib/query-keys";
 import type { ApiResponse, PaginatedUsers, UserSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/store/hooks";
@@ -28,6 +29,7 @@ export function LikesDialog({ onOpenChange, open, postId }: LikesDialogProps) {
   const queryClient = useQueryClient();
   const { token, user: viewer } = useAppSelector((state) => state.auth);
   const isAuthenticated = Boolean(token);
+  const likesQueryKey = queryKeys.postLikes.list(postId);
   const {
     data,
     error,
@@ -38,7 +40,7 @@ export function LikesDialog({ onOpenChange, open, postId }: LikesDialogProps) {
     isPending,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["post-likes", postId],
+    queryKey: likesQueryKey,
     queryFn: ({ pageParam }) => getPostLikes(postId, Number(pageParam), LIKES_PAGE_SIZE),
     enabled: open,
     initialPageParam: 1,
@@ -53,21 +55,21 @@ export function LikesDialog({ onOpenChange, open, postId }: LikesDialogProps) {
     mutationFn: ({ nextFollowing, username }: { nextFollowing: boolean; username: string }) =>
       nextFollowing ? followUser(username) : unfollowUser(username),
     onMutate: async ({ nextFollowing, username }) => {
-      await queryClient.cancelQueries({ queryKey: ["post-likes", postId] });
+      await queryClient.cancelQueries({ queryKey: likesQueryKey });
 
-      const previousLikes = queryClient.getQueryData<LikesInfiniteData>(["post-likes", postId]);
+      const previousLikes = queryClient.getQueryData<LikesInfiniteData>(likesQueryKey);
 
-      queryClient.setQueryData<LikesInfiniteData>(["post-likes", postId], (current) =>
+      queryClient.setQueryData<LikesInfiniteData>(likesQueryKey, (current) =>
         updateUserFollowState(current, username, nextFollowing),
       );
 
       return { previousLikes };
     },
     onError: (_error, _variables, context) => {
-      queryClient.setQueryData(["post-likes", postId], context?.previousLikes);
+      queryClient.setQueryData(likesQueryKey, context?.previousLikes);
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["post-likes", postId] });
+      void queryClient.invalidateQueries({ queryKey: likesQueryKey });
     },
   });
 

@@ -1,107 +1,25 @@
 "use client";
 
-import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
 import { Bookmark, Heart, MessageCircle, Send } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { likePost, savePost, unlikePost, unsavePost } from "@/features/social/api";
 import { formatRelativeTime } from "@/lib/date";
 import type { Post } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useAppSelector } from "@/store/hooks";
 
 import { LikesDialog } from "./likes-dialog";
-import { updateTimelinePostQueries, type TimelineInfiniteData } from "./timeline-cache";
+import { usePostActions } from "./use-post-actions";
 
 type PostCardProps = {
   post: Post;
 };
 
-type TimelineSnapshot = Array<[QueryKey, TimelineInfiniteData | undefined]>;
-
 export function PostCard({ post }: PostCardProps) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const [likesOpen, setLikesOpen] = useState(false);
-  const token = useAppSelector((state) => state.auth.token);
-  const isAuthenticated = Boolean(token);
   const caption = post.caption?.trim();
-  const savedByMe = Boolean(post.savedByMe);
-
-  const likeMutation = useMutation({
-    mutationFn: ({ nextLiked }: { nextLiked: boolean }) =>
-      nextLiked ? likePost(post.id) : unlikePost(post.id),
-    onMutate: async ({ nextLiked }) => {
-      await queryClient.cancelQueries({ queryKey: ["timeline"] });
-
-      const previousTimeline = queryClient.getQueriesData<TimelineInfiniteData>({ queryKey: ["timeline"] });
-
-      updateTimelinePostQueries(queryClient, post.id, (currentPost) => ({
-        ...currentPost,
-        likeCount: Math.max(0, currentPost.likeCount + (nextLiked ? 1 : -1)),
-        likedByMe: nextLiked,
-      }));
-
-      return { previousTimeline };
-    },
-    onError: (_error, _variables, context) => {
-      restoreTimelineSnapshot(queryClient, context?.previousTimeline);
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["timeline"] });
-    },
-  });
-
-  const saveMutation = useMutation({
-    mutationFn: ({ nextSaved }: { nextSaved: boolean }) =>
-      nextSaved ? savePost(post.id) : unsavePost(post.id),
-    onMutate: async ({ nextSaved }) => {
-      await queryClient.cancelQueries({ queryKey: ["timeline"] });
-
-      const previousTimeline = queryClient.getQueriesData<TimelineInfiniteData>({ queryKey: ["timeline"] });
-
-      updateTimelinePostQueries(queryClient, post.id, (currentPost) => ({
-        ...currentPost,
-        savedByMe: nextSaved,
-      }));
-
-      return { previousTimeline };
-    },
-    onError: (_error, _variables, context) => {
-      restoreTimelineSnapshot(queryClient, context?.previousTimeline);
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["timeline"] });
-    },
-  });
-
-  function requireAuthentication() {
-    if (isAuthenticated) {
-      return true;
-    }
-
-    router.push("/login");
-    return false;
-  }
-
-  function handleLikeClick() {
-    if (!requireAuthentication() || likeMutation.isPending) {
-      return;
-    }
-
-    likeMutation.mutate({ nextLiked: !post.likedByMe });
-  }
-
-  function handleSaveClick() {
-    if (!requireAuthentication() || saveMutation.isPending) {
-      return;
-    }
-
-    saveMutation.mutate({ nextSaved: !savedByMe });
-  }
+  const { isLikePending, isSavePending, savedByMe, toggleLike, toggleSave } = usePostActions(post);
 
   return (
     <>
@@ -147,8 +65,8 @@ export function PostCard({ post }: PostCardProps) {
               <button
                 aria-label={post.likedByMe ? "Unlike post" : "Like post"}
                 className="transition-colors hover:text-[#d51b62] disabled:opacity-60"
-                disabled={likeMutation.isPending}
-                onClick={handleLikeClick}
+                disabled={isLikePending}
+                onClick={toggleLike}
                 type="button"
               >
                 <Heart className={cn("size-6", post.likedByMe && "fill-[#d51b62] text-[#d51b62]")} />
@@ -183,8 +101,8 @@ export function PostCard({ post }: PostCardProps) {
           <button
             aria-label={savedByMe ? "Unsave post" : "Save post"}
             className="transition-colors hover:text-primary disabled:opacity-60"
-            disabled={saveMutation.isPending}
-            onClick={handleSaveClick}
+            disabled={isSavePending}
+            onClick={toggleSave}
             type="button"
           >
             <Bookmark className={cn("size-7", savedByMe && "fill-foreground")} />
@@ -207,13 +125,4 @@ export function PostCard({ post }: PostCardProps) {
       <LikesDialog onOpenChange={setLikesOpen} open={likesOpen} postId={post.id} />
     </>
   );
-}
-
-function restoreTimelineSnapshot(
-  queryClient: ReturnType<typeof useQueryClient>,
-  snapshot: TimelineSnapshot | undefined,
-) {
-  snapshot?.forEach(([queryKey, data]) => {
-    queryClient.setQueryData(queryKey, data);
-  });
 }
