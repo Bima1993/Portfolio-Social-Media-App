@@ -32,6 +32,8 @@ import type { ApiResponse, Post, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/store/hooks";
 
+import { FollowListDialog } from "./follow-list-dialog";
+
 type ProfileViewProps =
   | {
       mode: "me";
@@ -43,6 +45,7 @@ type ProfileViewProps =
     };
 
 type ProfileTab = MyProfileTab | PublicProfileTab;
+type FollowListType = "followers" | "following";
 
 type TabItem = {
   icon: LucideIcon;
@@ -60,6 +63,7 @@ export function ProfileView(props: ProfileViewProps) {
   const token = useAppSelector((state) => state.auth.token);
   const isAuthenticated = Boolean(token);
   const [activeTab, setActiveTab] = useState<ProfileTab>("gallery");
+  const [followList, setFollowList] = useState<FollowListType | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const profileQueryKey =
@@ -217,7 +221,11 @@ export function ProfileView(props: ProfileViewProps) {
               profile={profile}
             />
 
-            <ProfileStats profile={profile} />
+            <ProfileStats
+              onFollowersClick={() => setFollowList("followers")}
+              onFollowingClick={() => setFollowList("following")}
+              profile={profile}
+            />
 
             <div className="mt-7 border-b border-border">
               <div className="grid grid-cols-2">
@@ -271,6 +279,20 @@ export function ProfileView(props: ProfileViewProps) {
           }}
           open={Boolean(selectedPost)}
           post={selectedPost}
+        />
+      ) : null}
+
+      {profile && followList ? (
+        <FollowListDialog
+          isOwnProfile={Boolean(isOwnProfile)}
+          listType={followList}
+          onOpenChange={(open) => {
+            if (!open) {
+              setFollowList(null);
+            }
+          }}
+          open={Boolean(followList)}
+          profile={profile}
         />
       ) : null}
     </>
@@ -401,11 +423,19 @@ function FollowButton({
   );
 }
 
-function ProfileStats({ profile }: { profile: UserProfile }) {
+function ProfileStats({
+  onFollowersClick,
+  onFollowingClick,
+  profile,
+}: {
+  onFollowersClick: () => void;
+  onFollowingClick: () => void;
+  profile: UserProfile;
+}) {
   const stats = [
     { label: "Post", value: getProfileStat(profile, "posts") },
-    { label: "Followers", value: getProfileStat(profile, "followers") },
-    { label: "Following", value: getProfileStat(profile, "following") },
+    { label: "Followers", onClick: onFollowersClick, value: getProfileStat(profile, "followers") },
+    { label: "Following", onClick: onFollowingClick, value: getProfileStat(profile, "following") },
     { label: "Likes", value: getProfileStat(profile, "likes") },
   ];
 
@@ -413,8 +443,18 @@ function ProfileStats({ profile }: { profile: UserProfile }) {
     <div className="mt-5 grid grid-cols-4">
       {stats.map((stat, index) => (
         <div className={cn("text-center", index > 0 && "border-l border-border")} key={stat.label}>
-          <p className="text-xl font-bold lg:text-2xl">{stat.value}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
+          <button
+            className={cn(
+              "w-full rounded-md px-1 py-1 text-center transition-colors",
+              stat.onClick ? "hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : "cursor-default",
+            )}
+            disabled={!stat.onClick}
+            onClick={stat.onClick}
+            type="button"
+          >
+            <span className="block text-xl font-bold lg:text-2xl">{stat.value}</span>
+            <span className="mt-1 block text-sm text-muted-foreground">{stat.label}</span>
+          </button>
         </div>
       ))}
     </div>
