@@ -8,6 +8,7 @@ import {
   Grid2X2,
   Heart,
   Loader2,
+  LogOut,
   Send,
   UserRound,
   X,
@@ -19,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useLogout } from "@/features/auth/use-logout";
 import { getMe, getMyPosts, getMySaved } from "@/features/profile/api";
 import { followUser, unfollowUser } from "@/features/social/api";
 import { CommentsDialog } from "@/features/timeline/comments-dialog";
@@ -53,6 +55,7 @@ const PROFILE_PAGE_SIZE = 12;
 export function ProfileView(props: ProfileViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const logout = useLogout();
   const viewer = useAppSelector((state) => state.auth.user);
   const token = useAppSelector((state) => state.auth.token);
   const isAuthenticated = Boolean(token);
@@ -210,6 +213,7 @@ export function ProfileView(props: ProfileViewProps) {
               followPending={followMutation.isPending}
               isOwnProfile={Boolean(isOwnProfile)}
               onFollowToggle={handleFollowToggle}
+              onLogout={logout}
               profile={profile}
             />
 
@@ -277,11 +281,13 @@ function ProfileHeader({
   followPending,
   isOwnProfile,
   onFollowToggle,
+  onLogout,
   profile,
 }: {
   followPending: boolean;
   isOwnProfile: boolean;
   onFollowToggle: () => void;
+  onLogout: () => void;
   profile: UserProfile;
 }) {
   const isFollowing = getIsFollowing(profile);
@@ -299,9 +305,20 @@ function ProfileHeader({
 
         <div className="hidden items-center gap-3 lg:flex">
           {isOwnProfile ? (
-            <Button asChild className="h-12 rounded-full border-border px-8 text-base font-bold" variant="outline">
-              <Link href="/me/edit">Edit Profile</Link>
-            </Button>
+            <>
+              <Button asChild className="h-12 rounded-full border-border px-8 text-base font-bold" variant="outline">
+                <Link href="/me/edit">Edit Profile</Link>
+              </Button>
+              <Button
+                className="h-12 rounded-full border-border px-6 text-base font-bold"
+                onClick={onLogout}
+                type="button"
+                variant="outline"
+              >
+                <LogOut className="size-5" />
+                Logout
+              </Button>
+            </>
           ) : (
             <FollowButton isFollowing={isFollowing} isPending={followPending} onClick={onFollowToggle} />
           )}
@@ -328,6 +345,16 @@ function ProfileHeader({
             onClick={onFollowToggle}
           />
         )}
+        {isOwnProfile ? (
+          <button
+            aria-label="Logout"
+            className="flex size-10 items-center justify-center rounded-full border border-border transition-colors hover:bg-secondary"
+            onClick={onLogout}
+            type="button"
+          >
+            <LogOut className="size-5" />
+          </button>
+        ) : null}
         <button
           aria-label="Share profile"
           className="flex size-10 items-center justify-center rounded-full border border-border transition-colors hover:bg-secondary"

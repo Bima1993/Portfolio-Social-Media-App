@@ -19,6 +19,8 @@ const POST_COLLECTION_KEYS = [
   "myPosts",
 ] as const;
 
+type PostCollectionKey = (typeof POST_COLLECTION_KEYS)[number] | null;
+
 export function updatePostInTimelineData(
   data: TimelineInfiniteData | undefined,
   postId: Post["id"],
@@ -38,13 +40,19 @@ export function updatePostInTimelineData(
     }
 
     let pageChanged = false;
-    const posts = collection.posts.map((post) => {
+    const items = collection.items.map((item) => {
+      const post = getPostFromCollectionItem(item);
+
+      if (!post) {
+        return item;
+      }
+
       if (post.id !== postId) {
-        return post;
+        return item;
       }
 
       pageChanged = true;
-      return updatePost(post);
+      return updateCollectionItemPost(item, updatePost(post));
     });
 
     if (!pageChanged) {
@@ -54,7 +62,37 @@ export function updatePostInTimelineData(
     changed = true;
     return {
       ...page,
-      data: updatePageDataCollection(pageData, collection.key, posts) as PaginatedPosts,
+      data: updatePageDataCollection(pageData, collection.key, items) as PaginatedPosts,
+    };
+  });
+
+  return changed ? { ...data, pages } : data;
+}
+
+export function removePostFromTimelineData(data: TimelineInfiniteData | undefined, postId: Post["id"]) {
+  if (!data) {
+    return data;
+  }
+
+  let changed = false;
+  const pages = data.pages.map((page) => {
+    const pageData = page.data as unknown;
+    const collection = getPostCollection(pageData);
+
+    if (!collection) {
+      return page;
+    }
+
+    const items = collection.items.filter((item) => getPostFromCollectionItem(item)?.id !== postId);
+
+    if (items.length === collection.items.length) {
+      return page;
+    }
+
+    changed = true;
+    return {
+      ...page,
+      data: updatePageDataCollection(pageData, collection.key, items) as PaginatedPosts,
     };
   });
 
@@ -69,11 +107,23 @@ export function updateTimelinePostQueries(
   queryClient.setQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.timeline.all }, (data) =>
     updatePostInTimelineData(data, postId, updatePost),
   );
+  queryClient.setQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.profilePosts.all }, (data) =>
+    updatePostInTimelineData(data, postId, updatePost),
+  );
+}
+
+export function removePostFromPostQueries(queryClient: QueryClient, postId: Post["id"]) {
+  queryClient.setQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.timeline.all }, (data) =>
+    removePostFromTimelineData(data, postId),
+  );
+  queryClient.setQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.profilePosts.all }, (data) =>
+    removePostFromTimelineData(data, postId),
+  );
 }
 
 function getPostCollection(payload: unknown) {
   if (Array.isArray(payload)) {
-    return { key: null, posts: payload.filter(isPostLike) };
+    return { key: null, items: payload };
   }
 
   if (!isRecord(payload)) {
@@ -84,22 +134,66 @@ function getPostCollection(payload: unknown) {
     const value = payload[key];
 
     if (Array.isArray(value)) {
-      return { key, posts: value.filter(isPostLike) };
+      return { key, items: value };
     }
   }
 
   return null;
 }
 
-function updatePageDataCollection(payload: unknown, key: (typeof POST_COLLECTION_KEYS)[number] | null, posts: Post[]) {
+function updatePageDataCollection(payload: unknown, key: PostCollectionKey, items: unknown[]) {
   if (key === null) {
-    return posts;
+    return items;
   }
 
   return {
     ...(isRecord(payload) ? payload : {}),
-    [key]: posts,
+    [key]: items,
   };
+}
+
+function getPostFromCollectionItem(item: unknown): Post | null {
+  if (isPostLike(item)) {
+    return item;
+  }
+
+  if (!isRecord(item)) {
+    return null;
+  }
+
+  if (isPostLike(item.post)) {
+    return item.post;
+  }
+
+  if (isPostLike(item.savedPost)) {
+    return item.savedPost;
+  }
+
+  if (isPostLike(item.likedPost)) {
+    return item.likedPost;
+  }
+
+  return null;
+}
+
+function updateCollectionItemPost(item: unknown, post: Post) {
+  if (!isRecord(item)) {
+    return post;
+  }
+
+  if (isPostLike(item.post)) {
+    return { ...item, post };
+  }
+
+  if (isPostLike(item.savedPost)) {
+    return { ...item, savedPost: post };
+  }
+
+  if (isPostLike(item.likedPost)) {
+    return { ...item, likedPost: post };
+  }
+
+  return post;
 }
 
 function isPostLike(value: unknown): value is Post {

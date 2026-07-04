@@ -2,12 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bookmark, Heart, MessageCircle, Send } from "lucide-react";
+import { Bookmark, Heart, Loader2, MessageCircle, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { useDeletePost } from "@/features/posts/use-delete-post";
 import { formatRelativeTime } from "@/lib/date";
 import type { Post } from "@/lib/types";
+import { isSameUser } from "@/lib/user";
 import { cn } from "@/lib/utils";
+import { useAppSelector } from "@/store/hooks";
 
 import { LikesDialog } from "./likes-dialog";
 import { CommentsDialog } from "./comments-dialog";
@@ -20,8 +23,20 @@ type PostCardProps = {
 export function PostCard({ post }: PostCardProps) {
   const [likesOpen, setLikesOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const viewer = useAppSelector((state) => state.auth.user);
   const caption = post.caption?.trim();
   const { isLikePending, isSavePending, savedByMe, toggleLike, toggleSave } = usePostActions(post);
+  const deletePostMutation = useDeletePost();
+  const canManagePost = isSameUser(viewer, post.author);
+  const isDeletingThisPost = deletePostMutation.isDeletingPost && deletePostMutation.deletingPostId === post.id;
+
+  function handleDeletePost() {
+    if (!window.confirm("Delete this post?")) {
+      return;
+    }
+
+    deletePostMutation.deletePost(post.id);
+  }
 
   return (
     <>
@@ -48,6 +63,17 @@ export function PostCard({ post }: PostCardProps) {
             </Link>
             <p className="mt-0.5 text-sm text-muted-foreground">{formatRelativeTime(post.createdAt)}</p>
           </div>
+          {canManagePost ? (
+            <button
+              aria-label="Delete post"
+              className="ml-auto flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-[#d51b62] disabled:opacity-60"
+              disabled={isDeletingThisPost}
+              onClick={handleDeletePost}
+              type="button"
+            >
+              {isDeletingThisPost ? <Loader2 className="size-5 animate-spin" /> : <Trash2 className="size-5" />}
+            </button>
+          ) : null}
         </header>
 
         <button

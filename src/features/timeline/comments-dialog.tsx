@@ -2,21 +2,28 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, Heart, Loader2, MessageCircle, MoreHorizontal, Send, Smile, X } from "lucide-react";
+import { Bookmark, Heart, Loader2, MessageCircle, MoreHorizontal, Send, Smile, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { createComment, getComments } from "@/features/social/api";
+import { useDeletePost } from "@/features/posts/use-delete-post";
+import { createComment, deleteComment, getComments } from "@/features/social/api";
 import { formatRelativeTime } from "@/lib/date";
 import { queryKeys } from "@/lib/query-keys";
 import type { Comment, Post } from "@/lib/types";
+import { isSameUser } from "@/lib/user";
 import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/store/hooks";
 
-import { getNextCommentsPageParam, getPostComments } from "./comments-data";
+import {
+  getNextCommentsPageParam,
+  getPostComments,
+  removeCommentFromCommentsData,
+  type CommentsInfiniteData,
+} from "./comments-data";
 import { updateTimelinePostQueries } from "./timeline-cache";
 import { usePostActions } from "./use-post-actions";
 
@@ -53,6 +60,7 @@ export function CommentsDialog({ onOpenChange, open, post }: CommentsDialogProps
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const token = useAppSelector((state) => state.auth.token);
+  const viewer = useAppSelector((state) => state.auth.user);
   const isAuthenticated = Boolean(token);
   const [commentText, setCommentText] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -60,6 +68,10 @@ export function CommentsDialog({ onOpenChange, open, post }: CommentsDialogProps
   const caption = post.caption?.trim();
   const trimmedComment = commentText.trim();
   const { isLikePending, isSavePending, savedByMe, toggleLike, toggleSave } = usePostActions(post);
+  const deletePostMutation = useDeletePost({
+    onSuccess: () => onOpenChange(false),
+  });
+  const canManagePost = isSameUser(viewer, post.author);
   const {
     data,
     error,
@@ -91,6 +103,22 @@ export function CommentsDialog({ onOpenChange, open, post }: CommentsDialogProps
     },
   });
 
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: Comment["id"]) => deleteComment(commentId),
+    onSuccess: (_data, commentId) => {
+      queryClient.setQueryData<CommentsInfiniteData>(commentsQueryKey, (currentData) =>
+        removeCommentFromCommentsData(currentData, commentId),
+      );
+      updateTimelinePostQueries(queryClient, post.id, (currentPost) => ({
+        ...currentPost,
+        commentCount: Math.max(0, Number(currentPost.commentCount ?? 0) - 1),
+      }));
+      void queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });
+    },
+  });
+
   const comments = data?.pages.flatMap(getPostComments) ?? [];
   const canSubmit = trimmedComment.length > 0 && !createCommentMutation.isPending;
 
@@ -113,6 +141,14 @@ export function CommentsDialog({ onOpenChange, open, post }: CommentsDialogProps
   function appendEmoji(emoji: string) {
     setCommentText((currentText) => `${currentText}${emoji}`);
     inputRef.current?.focus();
+  }
+
+  function handleDeletePost() {
+    if (!window.confirm("Delete this post?")) {
+      return;
+    }
+
+    deletePostMutation.deletePost(post.id);
   }
 
   return (
@@ -140,7 +176,13 @@ export function CommentsDialog({ onOpenChange, open, post }: CommentsDialogProps
 
           <div className="flex min-h-0 flex-col bg-secondary">
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5 sm:px-6">
-              <PostSummary caption={caption} post={post} />
+              <PostSummary
+                canManagePost={canManagePost}
+                caption={caption}
+                isDeletingPost={deletePostMutation.isDeletingPost && deletePostMutation.deletingPostId === post.id}
+                onDeletePost={handleDeletePost}
+                post={post}
+              />
 
               <section className="mt-6 border-t border-border pt-5">
                 <h3 className="text-lg font-bold">Comments</h3>
@@ -169,7 +211,13 @@ export function CommentsDialog({ onOpenChange, open, post }: CommentsDialogProps
                   {comments.length > 0 ? (
                     <div className="grid gap-0">
                       {comments.map((comment) => (
-                        <CommentRow comment={comment} key={comment.id} />
+                        <CommentRow
+                          canDelete={isSameUser(viewer, comment.author)}
+                          comment={comment}
+                          isDeleting={deleteCommentMutation.isPending && deleteCommentMutation.variables === comment.id}
+                          key={comment.id}
+                          onDelete={() => deleteCommentMutation.mutate(comment.id)}
+                        />
                       ))}
                     </div>
                   ) : null}
@@ -284,7 +332,19 @@ export function CommentsDialog({ onOpenChange, open, post }: CommentsDialogProps
   );
 }
 
-function PostSummary({ caption, post }: { caption: string | undefined; post: Post }) {
+function PostSummary({
+  canManagePost,
+  caption,
+  isDeletingPost,
+  onDeletePost,
+  post,
+}: {
+  canManagePost: boolean;
+  caption: string | undefined;
+  isDeletingPost: boolean;
+  onDeletePost: () => void;
+  post: Post;
+}) {
   return (
     <div>
       <div className="flex items-start gap-3">
@@ -303,9 +363,21 @@ function PostSummary({ caption, post }: { caption: string | undefined; post: Pos
           </Link>
           <p className="mt-1 text-sm text-muted-foreground">{formatRelativeTime(post.createdAt)}</p>
         </div>
-        <button aria-label="More post actions" className="rounded-full p-1 transition-colors hover:bg-muted" type="button">
-          <MoreHorizontal className="size-6" />
-        </button>
+        {canManagePost ? (
+          <button
+            aria-label="Delete post"
+            className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-[#d51b62] disabled:opacity-60"
+            disabled={isDeletingPost}
+            onClick={onDeletePost}
+            type="button"
+          >
+            {isDeletingPost ? <Loader2 className="size-6 animate-spin" /> : <Trash2 className="size-6" />}
+          </button>
+        ) : (
+          <button aria-label="More post actions" className="rounded-full p-1 transition-colors hover:bg-muted" type="button">
+            <MoreHorizontal className="size-6" />
+          </button>
+        )}
       </div>
 
       {caption ? <p className="mt-4 text-sm leading-7 text-foreground">{caption}</p> : null}
@@ -313,7 +385,25 @@ function PostSummary({ caption, post }: { caption: string | undefined; post: Pos
   );
 }
 
-function CommentRow({ comment }: { comment: Comment }) {
+function CommentRow({
+  canDelete,
+  comment,
+  isDeleting,
+  onDelete,
+}: {
+  canDelete: boolean;
+  comment: Comment;
+  isDeleting: boolean;
+  onDelete: () => void;
+}) {
+  function handleDelete() {
+    if (!window.confirm("Delete this comment?")) {
+      return;
+    }
+
+    onDelete();
+  }
+
   return (
     <article className="border-b border-border py-4">
       <div className="flex items-start gap-3">
@@ -335,6 +425,17 @@ function CommentRow({ comment }: { comment: Comment }) {
           </div>
           <p className="mt-2 break-words text-sm leading-6">{comment.text}</p>
         </div>
+        {canDelete ? (
+          <button
+            aria-label="Delete comment"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-[#d51b62] disabled:opacity-60"
+            disabled={isDeleting}
+            onClick={handleDelete}
+            type="button"
+          >
+            {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+          </button>
+        ) : null}
       </div>
     </article>
   );

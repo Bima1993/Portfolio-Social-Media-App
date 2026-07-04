@@ -1,6 +1,10 @@
+import type { InfiniteData } from "@tanstack/react-query";
+
 import type { ApiResponse, Comment, PaginatedComments, Pagination } from "@/lib/types";
 
 const COMMENT_COLLECTION_KEYS = ["comments", "items", "results", "data"] as const;
+
+export type CommentsInfiniteData = InfiniteData<ApiResponse<PaginatedComments>, number>;
 
 export function getPostComments(page: ApiResponse<PaginatedComments>) {
   return extractCommentCandidates(page.data).filter(isPostComment);
@@ -14,6 +18,39 @@ export function getNextCommentsPageParam(lastPage: ApiResponse<PaginatedComments
   }
 
   return pagination.page < pagination.totalPages ? pagination.page + 1 : undefined;
+}
+
+export function removeCommentFromCommentsData(
+  data: CommentsInfiniteData | undefined,
+  commentId: Comment["id"],
+) {
+  if (!data) {
+    return data;
+  }
+
+  let changed = false;
+  const pages = data.pages.map((page) => {
+    const pageData = page.data as unknown;
+    const collection = getCommentCollection(pageData);
+
+    if (!collection) {
+      return page;
+    }
+
+    const comments = collection.comments.filter((comment) => comment.id !== commentId);
+
+    if (comments.length === collection.comments.length) {
+      return page;
+    }
+
+    changed = true;
+    return {
+      ...page,
+      data: updatePageDataCollection(pageData, collection.key, comments) as PaginatedComments,
+    };
+  });
+
+  return changed ? { ...data, pages } : data;
 }
 
 function extractCommentCandidates(payload: unknown): unknown[] {
@@ -34,6 +71,41 @@ function extractCommentCandidates(payload: unknown): unknown[] {
   }
 
   return [];
+}
+
+function getCommentCollection(payload: unknown) {
+  if (Array.isArray(payload)) {
+    return { key: null, comments: payload.filter(isPostComment) };
+  }
+
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  for (const key of COMMENT_COLLECTION_KEYS) {
+    const value = payload[key];
+
+    if (Array.isArray(value)) {
+      return { key, comments: value.filter(isPostComment) };
+    }
+  }
+
+  return null;
+}
+
+function updatePageDataCollection(
+  payload: unknown,
+  key: (typeof COMMENT_COLLECTION_KEYS)[number] | null,
+  comments: Comment[],
+) {
+  if (key === null) {
+    return comments;
+  }
+
+  return {
+    ...(isRecord(payload) ? payload : {}),
+    [key]: comments,
+  };
 }
 
 function extractPagination(payload: unknown): Pagination | null {
