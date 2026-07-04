@@ -7,12 +7,13 @@ import { useState } from "react";
 
 import { SocialityLogo } from "@/components/brand/sociality-logo";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { UserSearch } from "@/features/users/components/user-search";
 import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/store/hooks";
 
 export function AppHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const { hydrated, token, user } = useAppSelector((state) => state.auth);
   const isAuthenticated = hydrated && Boolean(token);
   const viewerName = user?.name ?? user?.username ?? "Profile";
@@ -27,22 +28,19 @@ export function AppHeader() {
           textClassName="lg:text-3xl"
         />
 
-        <label className="relative hidden lg:block">
-          <span className="sr-only">Search</span>
-          <Search className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="h-12 rounded-full border-border bg-secondary pl-12 text-base text-foreground placeholder:text-muted-foreground"
-            placeholder="Search"
-            type="search"
-          />
-        </label>
+        <UserSearch className="hidden lg:block" />
 
         <button
-          aria-label="Search"
+          aria-expanded={mobileSearchOpen}
+          aria-label={mobileSearchOpen ? "Close search" : "Search"}
           className="absolute right-14 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-foreground transition-colors hover:bg-secondary sm:right-16 lg:hidden"
+          onClick={() => {
+            setMobileSearchOpen((current) => !current);
+            setMenuOpen(false);
+          }}
           type="button"
         >
-          <Search className="size-5" />
+          {mobileSearchOpen ? <X className="size-5" /> : <Search className="size-5" />}
         </button>
 
         {isAuthenticated ? (
@@ -79,13 +77,29 @@ export function AppHeader() {
               aria-expanded={menuOpen}
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               className="absolute right-3 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-foreground transition-colors hover:bg-secondary sm:right-5 lg:hidden"
-              onClick={() => setMenuOpen((current) => !current)}
+              onClick={() => {
+                setMenuOpen((current) => !current);
+                setMobileSearchOpen(false);
+              }}
               type="button"
             >
               {menuOpen ? <X className="size-6" /> : <Menu className="size-7" />}
             </button>
           </>
         )}
+      </div>
+
+      <div
+        className={cn(
+          "grid border-t border-border bg-background px-4 transition-[grid-template-rows] duration-200 lg:hidden",
+          mobileSearchOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="py-3">
+            <UserSearch onResultClick={() => setMobileSearchOpen(false)} variant="mobile" />
+          </div>
+        </div>
       </div>
 
       <div

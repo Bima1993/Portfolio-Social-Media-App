@@ -5,7 +5,19 @@ import type { ApiResponse, PaginatedPosts, Post } from "@/lib/types";
 
 export type TimelineInfiniteData = InfiniteData<ApiResponse<PaginatedPosts>, number>;
 
-const POST_COLLECTION_KEYS = ["posts", "feed", "items", "results", "data"] as const;
+const POST_COLLECTION_KEYS = [
+  "posts",
+  "feed",
+  "items",
+  "results",
+  "data",
+  "saved",
+  "savedPosts",
+  "liked",
+  "likedPosts",
+  "userPosts",
+  "myPosts",
+] as const;
 
 export function updatePostInTimelineData(
   data: TimelineInfiniteData | undefined,

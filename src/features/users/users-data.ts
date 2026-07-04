@@ -1,24 +1,12 @@
-import type { ApiResponse, PaginatedPosts, Pagination, Post } from "@/lib/types";
+import type { ApiResponse, PaginatedUsers, Pagination, UserSummary } from "@/lib/types";
 
-const POST_COLLECTION_KEYS = [
-  "posts",
-  "feed",
-  "items",
-  "results",
-  "data",
-  "saved",
-  "savedPosts",
-  "liked",
-  "likedPosts",
-  "userPosts",
-  "myPosts",
-] as const;
+const USER_COLLECTION_KEYS = ["users", "items", "results", "data"] as const;
 
-export function getTimelinePosts(page: ApiResponse<PaginatedPosts>) {
-  return extractPostCandidates(page.data).filter(isTimelinePost);
+export function getUsers(page: ApiResponse<PaginatedUsers>) {
+  return extractUserCandidates(page.data).filter(isUserSummary);
 }
 
-export function getNextTimelinePageParam(lastPage: ApiResponse<PaginatedPosts>) {
+export function getNextUsersPageParam(lastPage: ApiResponse<PaginatedUsers>) {
   const pagination = extractPagination(lastPage.data);
 
   if (!pagination) {
@@ -28,44 +16,24 @@ export function getNextTimelinePageParam(lastPage: ApiResponse<PaginatedPosts>) 
   return pagination.page < pagination.totalPages ? pagination.page + 1 : undefined;
 }
 
-function extractPostCandidates(payload: unknown): unknown[] {
+function extractUserCandidates(payload: unknown): unknown[] {
   if (Array.isArray(payload)) {
-    return payload.map(unwrapPostCandidate);
+    return payload;
   }
 
   if (!isRecord(payload)) {
     return [];
   }
 
-  for (const key of POST_COLLECTION_KEYS) {
+  for (const key of USER_COLLECTION_KEYS) {
     const value = payload[key];
 
     if (Array.isArray(value)) {
-      return value.map(unwrapPostCandidate);
+      return value;
     }
   }
 
   return [];
-}
-
-function unwrapPostCandidate(value: unknown) {
-  if (!isRecord(value)) {
-    return value;
-  }
-
-  if (isRecord(value.post)) {
-    return value.post;
-  }
-
-  if (isRecord(value.savedPost)) {
-    return value.savedPost;
-  }
-
-  if (isRecord(value.likedPost)) {
-    return value.likedPost;
-  }
-
-  return value;
 }
 
 function extractPagination(payload: unknown): Pagination | null {
@@ -108,12 +76,14 @@ function toPagination(value: unknown): Pagination | null {
   };
 }
 
-function isTimelinePost(value: unknown): value is Post {
-  if (!isRecord(value) || value.id === undefined || value.id === null) {
-    return false;
-  }
-
-  return typeof value.imageUrl === "string" && isRecord(value.author) && typeof value.author.username === "string";
+function isUserSummary(value: unknown): value is UserSummary {
+  return (
+    isRecord(value) &&
+    value.id !== undefined &&
+    value.id !== null &&
+    typeof value.username === "string" &&
+    typeof value.name === "string"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

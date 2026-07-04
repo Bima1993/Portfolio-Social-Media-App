@@ -22,6 +22,10 @@ export const queryKeys = {
     public: (username: string, tab: PublicProfileTab) =>
       [...queryKeys.profilePosts.all, "public", username, tab] as const,
   },
+  users: {
+    all: ["users"] as const,
+    search: (query: string) => [...queryKeys.users.all, "search", query] as const,
+  },
 };
 
 export type TimelineSource = "explore-posts";
