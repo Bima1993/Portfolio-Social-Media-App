@@ -1,17 +1,15 @@
-import { BottomNavigation } from "@/components/layout/bottom-navigation";
 import { AppHeader } from "@/components/layout/app-header";
 import { AuthGuard } from "@/features/auth/components/auth-guard";
-import { ProfileView } from "@/features/profile/components/profile-view";
+import { EditProfileView } from "@/features/profile/components/edit-profile-view";
 
-export default function MePage() {
+export default function EditProfilePage() {
   return (
     <AuthGuard>
       <main className="min-h-screen bg-background text-foreground">
         <div className="hidden lg:block">
           <AppHeader />
         </div>
-        <ProfileView mode="me" />
-        <BottomNavigation />
+        <EditProfileView />
       </main>
     </AuthGuard>
   );

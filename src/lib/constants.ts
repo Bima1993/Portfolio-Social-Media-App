@@ -6,4 +6,6 @@ export const AUTH_TOKEN_KEY = "sociality.auth.token";
 
 export const POST_SUCCESS_STORAGE_KEY = "sociality.post.success";
 
+export const PROFILE_SUCCESS_STORAGE_KEY = "sociality.profile.success";
+
 export const DEFAULT_PAGE_SIZE = 20;

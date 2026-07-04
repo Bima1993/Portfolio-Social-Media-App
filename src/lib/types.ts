@@ -44,10 +44,12 @@ export type UserProfile = UserSummary & {
   phone?: string | null;
   bio?: string | null;
   counts?: {
-    post: number;
-    followers: number;
-    following: number;
-    likes: number;
+    post?: number;
+    posts?: number;
+    followers?: number;
+    following?: number;
+    likes?: number;
+    saved?: number;
   };
 };
 

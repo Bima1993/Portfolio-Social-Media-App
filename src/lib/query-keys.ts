@@ -11,6 +11,19 @@ export const queryKeys = {
     all: ["timeline"] as const,
     list: (source: TimelineSource) => [...queryKeys.timeline.all, source] as const,
   },
+  profile: {
+    all: ["profile"] as const,
+    me: () => [...queryKeys.profile.all, "me"] as const,
+    public: (username: string) => [...queryKeys.profile.all, "public", username] as const,
+  },
+  profilePosts: {
+    all: ["profile-posts"] as const,
+    me: (tab: MyProfileTab) => [...queryKeys.profilePosts.all, "me", tab] as const,
+    public: (username: string, tab: PublicProfileTab) =>
+      [...queryKeys.profilePosts.all, "public", username, tab] as const,
+  },
 };
 
 export type TimelineSource = "explore-posts";
+export type MyProfileTab = "gallery" | "saved";
+export type PublicProfileTab = "gallery" | "liked";
