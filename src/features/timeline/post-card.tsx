@@ -76,11 +76,10 @@ export function PostCard({ post }: PostCardProps) {
           ) : null}
         </header>
 
-        <button
-          aria-label="View comments"
+        <Link
+          aria-label="Open post detail"
           className="relative block aspect-square w-full overflow-hidden rounded-lg bg-secondary"
-          onClick={() => setCommentsOpen(true)}
-          type="button"
+          href={`/posts/${post.id}`}
         >
           <Image
             alt={post.caption ?? "Sociality post image"}
@@ -90,7 +89,7 @@ export function PostCard({ post }: PostCardProps) {
             sizes="(max-width: 640px) calc(100vw - 32px), 600px"
             src={post.imageUrl}
           />
-        </button>
+        </Link>
 
         <div className="mt-3 flex items-center justify-between">
           <div className="flex items-center gap-4">

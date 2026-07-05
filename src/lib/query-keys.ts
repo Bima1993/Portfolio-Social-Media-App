@@ -1,4 +1,8 @@
 export const queryKeys = {
+  posts: {
+    all: ["posts"] as const,
+    detail: (postId: number | string) => [...queryKeys.posts.all, "detail", postId] as const,
+  },
   postComments: {
     all: ["post-comments"] as const,
     list: (postId: number | string) => [...queryKeys.postComments.all, postId] as const,

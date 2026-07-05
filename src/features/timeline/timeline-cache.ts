@@ -104,6 +104,16 @@ export function updateTimelinePostQueries(
   postId: Post["id"],
   updatePost: (post: Post) => Post,
 ) {
+  queryClient.setQueryData<ApiResponse<Post>>(queryKeys.posts.detail(postId), (data) => {
+    if (!data) {
+      return data;
+    }
+
+    return {
+      ...data,
+      data: updatePost(data.data),
+    };
+  });
   queryClient.setQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.timeline.all }, (data) =>
     updatePostInTimelineData(data, postId, updatePost),
   );
@@ -113,6 +123,7 @@ export function updateTimelinePostQueries(
 }
 
 export function removePostFromPostQueries(queryClient: QueryClient, postId: Post["id"]) {
+  queryClient.removeQueries({ queryKey: queryKeys.posts.detail(postId) });
   queryClient.setQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.timeline.all }, (data) =>
     removePostFromTimelineData(data, postId),
   );

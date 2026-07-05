@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "@/lib/query-keys";
-import type { Post } from "@/lib/types";
+import type { ApiResponse, Post } from "@/lib/types";
 
 import { deletePost as deletePostRequest } from "./api";
 import { removePostFromPostQueries, type TimelineInfiniteData } from "../timeline/timeline-cache";
@@ -29,12 +29,16 @@ export function useDeletePost(options?: DeletePostOptions) {
       const previousProfilePostQueries = queryClient.getQueriesData<TimelineInfiniteData>({
         queryKey: queryKeys.profilePosts.all,
       });
+      const previousPostDetail = queryClient.getQueryData<ApiResponse<Post>>(queryKeys.posts.detail(postId));
 
       removePostFromPostQueries(queryClient, postId);
 
-      return { previousProfilePostQueries, previousTimelineQueries };
+      return { previousPostDetail, previousProfilePostQueries, previousTimelineQueries };
     },
     onError: (_error, _postId, context) => {
+      if (context?.previousPostDetail) {
+        queryClient.setQueryData(queryKeys.posts.detail(_postId), context.previousPostDetail);
+      }
       context?.previousTimelineQueries.forEach(([queryKey, data]) => {
         queryClient.setQueryData(queryKey, data);
       });
@@ -46,6 +50,7 @@ export function useDeletePost(options?: DeletePostOptions) {
       options?.onSuccess?.(postId);
     },
     onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.posts.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.profile.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });

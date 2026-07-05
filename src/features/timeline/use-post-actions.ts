@@ -42,6 +42,7 @@ export function usePostActions(post: Post) {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(post.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });
     },
   });
@@ -68,6 +69,8 @@ export function usePostActions(post: Post) {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(post.id) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });
     },
   });
 
