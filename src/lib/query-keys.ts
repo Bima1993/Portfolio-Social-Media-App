@@ -34,6 +34,6 @@ export const queryKeys = {
   },
 };
 
-export type TimelineSource = "explore-posts";
-export type MyProfileTab = "gallery" | "saved";
+export type TimelineSource = "explore-posts" | "feed";
+export type MyProfileTab = "gallery" | "liked" | "saved";
 export type PublicProfileTab = "gallery" | "liked";

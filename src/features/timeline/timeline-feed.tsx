@@ -5,9 +5,10 @@ import { Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { getFeed } from "@/features/feed/api";
 import { getExplorePosts } from "@/features/posts/api";
 import { POST_SUCCESS_STORAGE_KEY } from "@/lib/constants";
-import { queryKeys } from "@/lib/query-keys";
+import { queryKeys, type TimelineSource } from "@/lib/query-keys";
 import { useAppSelector } from "@/store/hooks";
 
 import { getNextTimelinePageParam, getTimelinePosts } from "./timeline-data";
@@ -17,7 +18,9 @@ const TIMELINE_PAGE_SIZE = 10;
 
 export function TimelineFeed() {
   const [showPostSuccess, setShowPostSuccess] = useState(false);
-  const hydrated = useAppSelector((state) => state.auth.hydrated);
+  const { hydrated, token } = useAppSelector((state) => state.auth);
+  const isAuthenticated = hydrated && Boolean(token);
+  const timelineSource: TimelineSource = isAuthenticated ? "feed" : "explore-posts";
   const {
     data,
     error,
@@ -28,8 +31,11 @@ export function TimelineFeed() {
     isPending,
     refetch,
   } = useInfiniteQuery({
-    queryKey: queryKeys.timeline.list("explore-posts"),
-    queryFn: ({ pageParam }) => getExplorePosts(Number(pageParam), TIMELINE_PAGE_SIZE),
+    queryKey: queryKeys.timeline.list(timelineSource),
+    queryFn: ({ pageParam }) =>
+      isAuthenticated
+        ? getFeed(Number(pageParam), TIMELINE_PAGE_SIZE)
+        : getExplorePosts(Number(pageParam), TIMELINE_PAGE_SIZE),
     enabled: hydrated,
     initialPageParam: 1,
     getNextPageParam: getNextTimelinePageParam,
@@ -77,9 +83,11 @@ export function TimelineFeed() {
 
       {!isPending && !isError && posts.length === 0 ? (
         <div className="rounded-lg border border-border bg-secondary/40 p-8 text-center">
-          <h2 className="text-lg font-bold">No posts yet</h2>
+          <h2 className="text-lg font-bold">{isAuthenticated ? "Your feed is quiet" : "No posts yet"}</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            New posts will appear here when they are available.
+            {isAuthenticated
+              ? "Follow more people or create your first post to start filling this timeline."
+              : "New posts will appear here when they are available."}
           </p>
         </div>
       ) : null}

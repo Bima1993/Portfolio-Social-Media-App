@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useLogout } from "@/features/auth/use-logout";
-import { getMe, getMyPosts, getMySaved } from "@/features/profile/api";
+import { getMe, getMyLikes, getMyPosts, getMySaved } from "@/features/profile/api";
 import { followUser, unfollowUser } from "@/features/social/api";
 import { CommentsDialog } from "@/features/timeline/comments-dialog";
 import { getNextTimelinePageParam, getTimelinePosts } from "@/features/timeline/timeline-data";
@@ -104,6 +104,7 @@ export function ProfileView(props: ProfileViewProps) {
       isOwnProfile
         ? [
             { icon: Grid2X2, label: "Gallery", value: "gallery" },
+            { icon: Heart, label: "Liked", value: "liked" },
             { icon: Bookmark, label: "Saved", value: "saved" },
           ]
         : [
@@ -121,7 +122,15 @@ export function ProfileView(props: ProfileViewProps) {
       const page = Number(pageParam);
 
       if (isOwnProfile) {
-        return currentTab === "saved" ? getMySaved(page, PROFILE_PAGE_SIZE) : getMyPosts(page, PROFILE_PAGE_SIZE);
+        if (currentTab === "saved") {
+          return getMySaved(page, PROFILE_PAGE_SIZE);
+        }
+
+        if (currentTab === "liked") {
+          return getMyLikes(page, PROFILE_PAGE_SIZE);
+        }
+
+        return getMyPosts(page, PROFILE_PAGE_SIZE);
       }
 
       if (props.mode === "public") {
@@ -228,7 +237,7 @@ export function ProfileView(props: ProfileViewProps) {
             />
 
             <div className="mt-7 border-b border-border">
-              <div className="grid grid-cols-2">
+              <div className={cn("grid", isOwnProfile ? "grid-cols-3" : "grid-cols-2")}>
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   const selected = currentTab === tab.value;
@@ -661,7 +670,15 @@ function ProfileAvatar({ className, profile }: { className?: string; profile: Us
 
 function getProfilePostsQueryKey(props: ProfileViewProps, isOwnProfile: boolean, activeTab: ProfileTab) {
   if (isOwnProfile) {
-    return queryKeys.profilePosts.me(activeTab === "saved" ? "saved" : "gallery");
+    if (activeTab === "saved") {
+      return queryKeys.profilePosts.me("saved");
+    }
+
+    if (activeTab === "liked") {
+      return queryKeys.profilePosts.me("liked");
+    }
+
+    return queryKeys.profilePosts.me("gallery");
   }
 
   if (props.mode === "public") {
