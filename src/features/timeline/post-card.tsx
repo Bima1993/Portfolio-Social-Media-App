@@ -6,6 +6,7 @@ import { Bookmark, Heart, Loader2, MessageCircle, Send, Trash2 } from "lucide-re
 import { useState } from "react";
 
 import { useDeletePost } from "@/features/posts/use-delete-post";
+import { usePostActions } from "@/features/posts/use-post-actions";
 import { formatRelativeTime } from "@/lib/date";
 import type { Post } from "@/lib/types";
 import { isSameUser } from "@/lib/user";
@@ -14,7 +15,6 @@ import { useAppSelector } from "@/store/hooks";
 
 import { LikesDialog } from "./likes-dialog";
 import { CommentsDialog } from "./comments-dialog";
-import { usePostActions } from "./use-post-actions";
 
 type PostCardProps = {
   post: Post;

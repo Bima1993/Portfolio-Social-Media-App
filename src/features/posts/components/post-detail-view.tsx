@@ -1,37 +1,26 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Bookmark, Heart, Loader2, MessageCircle, Send, Trash2, UserRound } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Loader2, Trash2, UserRound } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { createComment, deleteComment, getComments } from "@/features/social/api";
-import {
-  getNextCommentsPageParam,
-  getPostComments,
-  removeCommentFromCommentsData,
-  type CommentsInfiniteData,
-} from "@/features/timeline/comments-data";
-import { updateTimelinePostQueries } from "@/features/timeline/timeline-cache";
-import { usePostActions } from "@/features/timeline/use-post-actions";
+import { CommentsSection } from "@/features/comments/components/comments-section";
 import { formatRelativeTime } from "@/lib/date";
 import { queryKeys } from "@/lib/query-keys";
-import type { Comment, Post } from "@/lib/types";
+import type { Post } from "@/lib/types";
 import { isSameUser } from "@/lib/user";
-import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/store/hooks";
 
 import { getPost } from "../api";
 import { useDeletePost } from "../use-delete-post";
+import { PostActionsBar } from "./post-actions-bar";
 
 type PostDetailViewProps = {
   postId: string;
 };
-
-const COMMENTS_PAGE_SIZE = 10;
 
 export function PostDetailView({ postId }: PostDetailViewProps) {
   const postQuery = useQuery({
@@ -76,75 +65,13 @@ export function PostDetailView({ postId }: PostDetailViewProps) {
 
 function PostDetailContent({ post }: { post: Post }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { token, user: viewer } = useAppSelector((state) => state.auth);
-  const isAuthenticated = Boolean(token);
-  const [commentText, setCommentText] = useState("");
-  const commentsQueryKey = queryKeys.postComments.list(post.id);
+  const viewer = useAppSelector((state) => state.auth.user);
   const caption = post.caption?.trim();
-  const trimmedComment = commentText.trim();
   const canManagePost = isSameUser(viewer, post.author);
-  const { isLikePending, isSavePending, savedByMe, toggleLike, toggleSave } = usePostActions(post);
   const deletePostMutation = useDeletePost({
     onSuccess: () => router.push("/"),
   });
-
-  const commentsQuery = useInfiniteQuery({
-    queryKey: commentsQueryKey,
-    queryFn: ({ pageParam }) => getComments(post.id, Number(pageParam), COMMENTS_PAGE_SIZE),
-    initialPageParam: 1,
-    getNextPageParam: getNextCommentsPageParam,
-  });
-
-  const createCommentMutation = useMutation({
-    mutationFn: (text: string) => createComment(post.id, text),
-    onSuccess: () => {
-      setCommentText("");
-      updateTimelinePostQueries(queryClient, post.id, (currentPost) => ({
-        ...currentPost,
-        commentCount: Number(currentPost.commentCount ?? 0) + 1,
-      }));
-      void queryClient.invalidateQueries({ queryKey: commentsQueryKey });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });
-    },
-  });
-
-  const deleteCommentMutation = useMutation({
-    mutationFn: (commentId: Comment["id"]) => deleteComment(commentId),
-    onSuccess: (_data, commentId) => {
-      queryClient.setQueryData<CommentsInfiniteData>(commentsQueryKey, (currentData) =>
-        removeCommentFromCommentsData(currentData, commentId),
-      );
-      updateTimelinePostQueries(queryClient, post.id, (currentPost) => ({
-        ...currentPost,
-        commentCount: Math.max(0, Number(currentPost.commentCount ?? 0) - 1),
-      }));
-      void queryClient.invalidateQueries({ queryKey: commentsQueryKey });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });
-    },
-  });
-
-  const comments = commentsQuery.data?.pages.flatMap(getPostComments) ?? [];
-  const canSubmit = trimmedComment.length > 0 && !createCommentMutation.isPending;
   const isDeletingPost = deletePostMutation.isDeletingPost && deletePostMutation.deletingPostId === post.id;
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
-
-    if (!canSubmit) {
-      return;
-    }
-
-    createCommentMutation.mutate(trimmedComment);
-  }
 
   function handleDeletePost() {
     if (!window.confirm("Delete this post?")) {
@@ -167,206 +94,76 @@ function PostDetailContent({ post }: { post: Post }) {
         />
       </div>
 
-      <div className="flex min-h-0 flex-col lg:max-h-[720px]">
-        <div className="min-h-0 flex-1 overflow-y-auto py-5 lg:px-6">
-          <div className="flex items-start gap-3">
-            <Link className="relative size-11 shrink-0 overflow-hidden rounded-full bg-muted" href={`/profile/${post.author.username}`}>
-              <Image
-                alt={post.author.name}
-                className="object-cover"
-                fill
-                sizes="44px"
-                src={post.author.avatarUrl ?? "/globe.svg"}
-              />
-            </Link>
-            <div className="min-w-0 flex-1">
-              <Link className="block truncate text-base font-bold" href={`/profile/${post.author.username}`}>
-                {post.author.name}
-              </Link>
-              <p className="mt-1 text-sm text-muted-foreground">{formatRelativeTime(post.createdAt)}</p>
-            </div>
-            {canManagePost ? (
-              <button
-                aria-label="Delete post"
-                className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-[#d51b62] disabled:opacity-60"
-                disabled={isDeletingPost}
-                onClick={handleDeletePost}
-                type="button"
-              >
-                {isDeletingPost ? <Loader2 className="size-5 animate-spin" /> : <Trash2 className="size-5" />}
-              </button>
-            ) : null}
-          </div>
-
-          {caption ? <p className="mt-5 break-words text-sm leading-7 text-foreground">{caption}</p> : null}
-
-          <section className="mt-6 border-t border-border pt-5">
-            <h2 className="text-lg font-bold">Comments</h2>
-
-            {commentsQuery.isPending ? <CommentsSkeleton /> : null}
-
-            {commentsQuery.isError ? (
-              <div className="mt-4 rounded-lg border border-border bg-background/50 p-5 text-center">
-                <p className="text-sm text-muted-foreground">
-                  {commentsQuery.error instanceof Error ? commentsQuery.error.message : "Unable to load comments."}
-                </p>
-                <Button className="mt-4 h-10 rounded-full px-5" onClick={() => commentsQuery.refetch()} type="button">
-                  Retry
-                </Button>
-              </div>
-            ) : null}
-
-            {!commentsQuery.isPending && !commentsQuery.isError && comments.length === 0 ? (
-              <div className="flex min-h-[180px] flex-col items-center justify-center text-center">
-                <p className="text-lg font-bold">No Comments yet</p>
-                <p className="mt-2 text-sm text-muted-foreground">Start the conversation</p>
-              </div>
-            ) : null}
-
-            {comments.length > 0 ? (
-              <div className="mt-1 grid gap-0">
-                {comments.map((comment) => (
-                  <PostDetailCommentRow
-                    canDelete={isSameUser(viewer, comment.author)}
-                    comment={comment}
-                    isDeleting={deleteCommentMutation.isPending && deleteCommentMutation.variables === comment.id}
-                    key={comment.id}
-                    onDelete={() => deleteCommentMutation.mutate(comment.id)}
-                  />
-                ))}
-              </div>
-            ) : null}
-
-            {commentsQuery.hasNextPage ? (
-              <Button
-                className="mt-5 h-10 w-full rounded-full"
-                disabled={commentsQuery.isFetchingNextPage}
-                onClick={() => commentsQuery.fetchNextPage()}
-                type="button"
-                variant="outline"
-              >
-                {commentsQuery.isFetchingNextPage ? <Loader2 className="size-4 animate-spin" /> : null}
-                {commentsQuery.isFetchingNextPage ? "Loading" : "Load More"}
-              </Button>
-            ) : null}
-          </section>
-        </div>
-
-        <div className="border-t border-border py-4 lg:px-6">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <button
-                  aria-label={post.likedByMe ? "Unlike post" : "Like post"}
-                  className="transition-colors hover:text-[#d51b62] disabled:opacity-60"
-                  disabled={isLikePending}
-                  onClick={toggleLike}
-                  type="button"
-                >
-                  <Heart className={cn("size-6", post.likedByMe && "fill-[#d51b62] text-[#d51b62]")} />
-                </button>
-                <span className="text-sm font-semibold">{post.likeCount}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <MessageCircle className="size-6" />
-                {post.commentCount}
-              </div>
-              <button
-                aria-label="Share post"
-                className="flex items-center gap-2 text-sm font-semibold transition-colors hover:text-primary"
-                type="button"
-              >
-                <Send className="size-6" />
-                20
-              </button>
-            </div>
-
-            <button
-              aria-label={savedByMe ? "Unsave post" : "Save post"}
-              className="transition-colors hover:text-primary disabled:opacity-60"
-              disabled={isSavePending}
-              onClick={toggleSave}
-              type="button"
-            >
-              <Bookmark className={cn("size-7", savedByMe && "fill-foreground")} />
-            </button>
-          </div>
-
-          <form className="flex h-12 items-center rounded-lg border border-border bg-secondary focus-within:border-primary lg:bg-background" onSubmit={handleSubmit}>
-            <input
-              className="h-full min-w-0 flex-1 bg-transparent px-4 text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground"
-              onChange={(event) => setCommentText(event.target.value)}
-              placeholder="Add Comment"
-              ref={inputRef}
-              value={commentText}
-            />
-            <button
-              className="h-full shrink-0 px-4 text-sm font-bold text-primary transition-colors disabled:text-muted-foreground"
-              disabled={!canSubmit}
-              type="submit"
-            >
-              {createCommentMutation.isPending ? "Posting" : "Post"}
-            </button>
-          </form>
-        </div>
-      </div>
+      <CommentsSection
+        className="lg:max-h-[720px]"
+        composerInputShellClassName="bg-secondary lg:bg-background"
+        footer={<PostActionsBar post={post} />}
+        footerClassName="lg:px-6"
+        header={
+          <PostDetailSummary
+            canManagePost={canManagePost}
+            caption={caption}
+            isDeletingPost={isDeletingPost}
+            onDeletePost={handleDeletePost}
+            post={post}
+          />
+        }
+        post={post}
+        scrollClassName="py-5 lg:px-6"
+      />
     </article>
   );
 }
 
-function PostDetailCommentRow({
-  canDelete,
-  comment,
-  isDeleting,
-  onDelete,
+function PostDetailSummary({
+  canManagePost,
+  caption,
+  isDeletingPost,
+  onDeletePost,
+  post,
 }: {
-  canDelete: boolean;
-  comment: Comment;
-  isDeleting: boolean;
-  onDelete: () => void;
+  canManagePost: boolean;
+  caption: string | undefined;
+  isDeletingPost: boolean;
+  onDeletePost: () => void;
+  post: Post;
 }) {
-  function handleDelete() {
-    if (!window.confirm("Delete this comment?")) {
-      return;
-    }
-
-    onDelete();
-  }
-
   return (
-    <article className="border-b border-border py-4">
+    <div>
       <div className="flex items-start gap-3">
-        <Link className="relative size-10 shrink-0 overflow-hidden rounded-full bg-muted" href={`/profile/${comment.author.username}`}>
+        <Link
+          className="relative size-11 shrink-0 overflow-hidden rounded-full bg-muted"
+          href={`/profile/${post.author.username}`}
+        >
           <Image
-            alt={comment.author.name}
+            alt={post.author.name}
             className="object-cover"
             fill
-            sizes="40px"
-            src={comment.author.avatarUrl ?? "/globe.svg"}
+            sizes="44px"
+            src={post.author.avatarUrl ?? "/globe.svg"}
           />
         </Link>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <Link className="truncate text-sm font-bold" href={`/profile/${comment.author.username}`}>
-              {comment.author.name}
-            </Link>
-            <span className="text-xs text-muted-foreground">{formatRelativeTime(comment.createdAt)}</span>
-          </div>
-          <p className="mt-2 break-words text-sm leading-6">{comment.text}</p>
+          <Link className="block truncate text-base font-bold" href={`/profile/${post.author.username}`}>
+            {post.author.name}
+          </Link>
+          <p className="mt-1 text-sm text-muted-foreground">{formatRelativeTime(post.createdAt)}</p>
         </div>
-        {canDelete ? (
+        {canManagePost ? (
           <button
-            aria-label="Delete comment"
-            className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-[#d51b62] disabled:opacity-60"
-            disabled={isDeleting}
-            onClick={handleDelete}
+            aria-label="Delete post"
+            className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-[#d51b62] disabled:opacity-60"
+            disabled={isDeletingPost}
+            onClick={onDeletePost}
             type="button"
           >
-            {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            {isDeletingPost ? <Loader2 className="size-5 animate-spin" /> : <Trash2 className="size-5" />}
           </button>
         ) : null}
       </div>
-    </article>
+
+      {caption ? <p className="mt-5 break-words text-sm leading-7 text-foreground">{caption}</p> : null}
+    </div>
   );
 }
 

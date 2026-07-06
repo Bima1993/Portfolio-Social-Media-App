@@ -26,6 +26,7 @@ import { followUser, unfollowUser } from "@/features/social/api";
 import { CommentsDialog } from "@/features/timeline/comments-dialog";
 import { getNextTimelinePageParam, getTimelinePosts } from "@/features/timeline/timeline-data";
 import { getUserLikes, getUserPosts, getUserProfile } from "@/features/users/api";
+import { getIsFollowing } from "@/features/users/users-cache";
 import { PROFILE_SUCCESS_STORAGE_KEY } from "@/lib/constants";
 import { queryKeys, type MyProfileTab, type PublicProfileTab } from "@/lib/query-keys";
 import type { ApiResponse, Post, UserProfile } from "@/lib/types";
@@ -694,8 +695,4 @@ function getProfileStat(profile: UserProfile, key: "posts" | "followers" | "foll
   const numberValue = Number(value ?? 0);
 
   return Number.isFinite(numberValue) ? numberValue : 0;
-}
-
-function getIsFollowing(profile: UserProfile) {
-  return profile.isFollowedByMe ?? profile.isFollowing ?? false;
 }

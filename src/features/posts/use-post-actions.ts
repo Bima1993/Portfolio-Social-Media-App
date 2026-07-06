@@ -4,13 +4,12 @@ import { useMutation, useQueryClient, type QueryClient, type QueryKey } from "@t
 import { useRouter } from "next/navigation";
 
 import { likePost, savePost, unlikePost, unsavePost } from "@/features/social/api";
+import { updateTimelinePostQueries, type TimelineInfiniteData } from "@/features/timeline/timeline-cache";
 import { queryKeys } from "@/lib/query-keys";
-import type { Post } from "@/lib/types";
+import type { ApiResponse, Post } from "@/lib/types";
 import { useAppSelector } from "@/store/hooks";
 
-import { updateTimelinePostQueries, type TimelineInfiniteData } from "./timeline-cache";
-
-type TimelineSnapshot = Array<[QueryKey, TimelineInfiniteData | undefined]>;
+type CacheSnapshot = Array<[QueryKey, unknown]>;
 
 export function usePostActions(post: Post) {
   const router = useRouter();
@@ -23,11 +22,8 @@ export function usePostActions(post: Post) {
     mutationFn: ({ nextLiked }: { nextLiked: boolean }) =>
       nextLiked ? likePost(post.id) : unlikePost(post.id),
     onMutate: async ({ nextLiked }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.timeline.all });
-
-      const previousTimeline = queryClient.getQueriesData<TimelineInfiniteData>({
-        queryKey: queryKeys.timeline.all,
-      });
+      await cancelPostCacheQueries(queryClient, post.id);
+      const previousPostCaches = takePostCacheSnapshot(queryClient, post.id);
 
       updateTimelinePostQueries(queryClient, post.id, (currentPost) => ({
         ...currentPost,
@@ -35,10 +31,10 @@ export function usePostActions(post: Post) {
         likedByMe: nextLiked,
       }));
 
-      return { previousTimeline };
+      return { previousPostCaches };
     },
     onError: (_error, _variables, context) => {
-      restoreTimelineSnapshot(queryClient, context?.previousTimeline);
+      restoreCacheSnapshot(queryClient, context?.previousPostCaches);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
@@ -51,21 +47,18 @@ export function usePostActions(post: Post) {
     mutationFn: ({ nextSaved }: { nextSaved: boolean }) =>
       nextSaved ? savePost(post.id) : unsavePost(post.id),
     onMutate: async ({ nextSaved }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.timeline.all });
-
-      const previousTimeline = queryClient.getQueriesData<TimelineInfiniteData>({
-        queryKey: queryKeys.timeline.all,
-      });
+      await cancelPostCacheQueries(queryClient, post.id);
+      const previousPostCaches = takePostCacheSnapshot(queryClient, post.id);
 
       updateTimelinePostQueries(queryClient, post.id, (currentPost) => ({
         ...currentPost,
         savedByMe: nextSaved,
       }));
 
-      return { previousTimeline };
+      return { previousPostCaches };
     },
     onError: (_error, _variables, context) => {
-      restoreTimelineSnapshot(queryClient, context?.previousTimeline);
+      restoreCacheSnapshot(queryClient, context?.previousPostCaches);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
@@ -108,7 +101,23 @@ export function usePostActions(post: Post) {
   };
 }
 
-function restoreTimelineSnapshot(queryClient: QueryClient, snapshot: TimelineSnapshot | undefined) {
+function cancelPostCacheQueries(queryClient: QueryClient, postId: Post["id"]) {
+  return Promise.all([
+    queryClient.cancelQueries({ queryKey: queryKeys.timeline.all }),
+    queryClient.cancelQueries({ queryKey: queryKeys.profilePosts.all }),
+    queryClient.cancelQueries({ queryKey: queryKeys.posts.detail(postId) }),
+  ]);
+}
+
+function takePostCacheSnapshot(queryClient: QueryClient, postId: Post["id"]): CacheSnapshot {
+  return [
+    ...queryClient.getQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.timeline.all }),
+    ...queryClient.getQueriesData<TimelineInfiniteData>({ queryKey: queryKeys.profilePosts.all }),
+    [queryKeys.posts.detail(postId), queryClient.getQueryData<ApiResponse<Post>>(queryKeys.posts.detail(postId))],
+  ];
+}
+
+function restoreCacheSnapshot(queryClient: QueryClient, snapshot: CacheSnapshot | undefined) {
   snapshot?.forEach(([queryKey, data]) => {
     queryClient.setQueryData(queryKey, data);
   });
