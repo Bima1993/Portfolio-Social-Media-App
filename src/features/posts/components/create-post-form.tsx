@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type For
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createPost } from "@/features/posts/api";
+import { updateProfileStatQueries } from "@/features/profile/profile-stats";
 import { ApiError } from "@/lib/api";
 import { POST_SUCCESS_STORAGE_KEY } from "@/lib/constants";
 import { queryKeys } from "@/lib/query-keys";
@@ -30,8 +31,11 @@ export function CreatePostForm() {
 
   const createPostMutation = useMutation({
     mutationFn: createPost,
-    onSuccess: () => {
+    onSuccess: (response) => {
       window.sessionStorage.setItem(POST_SUCCESS_STORAGE_KEY, "1");
+      updateProfileStatQueries(queryClient, response.data.author.username, "posts", 1);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
       router.push("/");
     },

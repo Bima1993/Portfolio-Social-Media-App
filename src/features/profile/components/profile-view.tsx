@@ -22,6 +22,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useLogout } from "@/features/auth/use-logout";
 import { getMe, getMyLikes, getMyPosts, getMySaved } from "@/features/profile/api";
+import {
+  applyProfileStatDelta,
+  getLoadedPostsLikeTotal,
+  getProfilePostTotal,
+  getProfileStat,
+  type ProfileStatsFallbacks,
+} from "@/features/profile/profile-stats";
 import { followUser, unfollowUser } from "@/features/social/api";
 import { CommentsDialog } from "@/features/timeline/comments-dialog";
 import { getNextTimelinePageParam, getTimelinePosts } from "@/features/timeline/timeline-data";
@@ -150,9 +157,14 @@ export function ProfileView(props: ProfileViewProps) {
   const followMutation = useMutation({
     mutationFn: ({ nextFollowing, username }: { nextFollowing: boolean; username: string }) =>
       nextFollowing ? followUser(username) : unfollowUser(username),
-    onMutate: async ({ nextFollowing }) => {
-      await queryClient.cancelQueries({ queryKey: profileQueryKey });
+    onMutate: async ({ nextFollowing, username }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: profileQueryKey }),
+        queryClient.cancelQueries({ queryKey: queryKeys.profile.me() }),
+      ]);
       const previousProfile = queryClient.getQueryData<ApiResponse<UserProfile>>(profileQueryKey);
+      const previousMeProfile = queryClient.getQueryData<ApiResponse<UserProfile>>(queryKeys.profile.me());
+      const delta = nextFollowing ? 1 : -1;
 
       queryClient.setQueryData<ApiResponse<UserProfile>>(profileQueryKey, (current) => {
         if (!current) {
@@ -162,28 +174,49 @@ export function ProfileView(props: ProfileViewProps) {
         return {
           ...current,
           data: {
-            ...current.data,
-            counts: {
-              ...current.data.counts,
-              followers: Math.max(0, getProfileStat(current.data, "followers") + (nextFollowing ? 1 : -1)),
-            },
+            ...applyProfileStatDelta(current.data, "followers", delta),
             isFollowedByMe: nextFollowing,
             isFollowing: nextFollowing,
           },
         };
       });
 
-      return { previousProfile };
+      if (viewer?.username && viewer.username !== username) {
+        queryClient.setQueryData<ApiResponse<UserProfile>>(queryKeys.profile.me(), (current) => {
+          if (!current) {
+            return current;
+          }
+
+          return {
+            ...current,
+            data: applyProfileStatDelta(current.data, "following", delta),
+          };
+        });
+      }
+
+      return { previousMeProfile, previousProfile };
     },
     onError: (_error, _variables, context) => {
       queryClient.setQueryData(profileQueryKey, context?.previousProfile);
+      queryClient.setQueryData(queryKeys.profile.me(), context?.previousMeProfile);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile.me() });
     },
   });
 
   const posts = postsQuery.data?.pages.flatMap(getTimelinePosts) ?? [];
+  const profileStatsFallbacks: ProfileStatsFallbacks = {};
+  const postsTotal = currentTab === "gallery" ? getProfilePostTotal(postsQuery.data) : undefined;
+
+  if (postsTotal !== undefined) {
+    profileStatsFallbacks.posts = postsTotal;
+  }
+
+  if (currentTab === "gallery" && posts.length > 0) {
+    profileStatsFallbacks.likes = getLoadedPostsLikeTotal(posts);
+  }
 
   function handleFollowToggle() {
     if (!profile) {
@@ -232,6 +265,7 @@ export function ProfileView(props: ProfileViewProps) {
             />
 
             <ProfileStats
+              fallbacks={profileStatsFallbacks}
               onFollowersClick={() => setFollowList("followers")}
               onFollowingClick={() => setFollowList("following")}
               profile={profile}
@@ -434,19 +468,21 @@ function FollowButton({
 }
 
 function ProfileStats({
+  fallbacks,
   onFollowersClick,
   onFollowingClick,
   profile,
 }: {
+  fallbacks?: ProfileStatsFallbacks;
   onFollowersClick: () => void;
   onFollowingClick: () => void;
   profile: UserProfile;
 }) {
   const stats = [
-    { label: "Post", value: getProfileStat(profile, "posts") },
-    { label: "Followers", onClick: onFollowersClick, value: getProfileStat(profile, "followers") },
-    { label: "Following", onClick: onFollowingClick, value: getProfileStat(profile, "following") },
-    { label: "Likes", value: getProfileStat(profile, "likes") },
+    { label: "Post", value: getProfileStat(profile, "posts", fallbacks?.posts) },
+    { label: "Followers", onClick: onFollowersClick, value: getProfileStat(profile, "followers", fallbacks?.followers) },
+    { label: "Following", onClick: onFollowingClick, value: getProfileStat(profile, "following", fallbacks?.following) },
+    { label: "Likes", value: getProfileStat(profile, "likes", fallbacks?.likes) },
   ];
 
   return (
@@ -687,12 +723,4 @@ function getProfilePostsQueryKey(props: ProfileViewProps, isOwnProfile: boolean,
   }
 
   return queryKeys.profilePosts.me("gallery");
-}
-
-function getProfileStat(profile: UserProfile, key: "posts" | "followers" | "following" | "likes") {
-  const counts = profile.counts as Record<string, unknown> | undefined;
-  const value = key === "posts" ? counts?.posts ?? counts?.post : counts?.[key];
-  const numberValue = Number(value ?? 0);
-
-  return Number.isFinite(numberValue) ? numberValue : 0;
 }

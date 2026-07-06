@@ -8,8 +8,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { updateProfileStatQueries } from "@/features/profile/profile-stats";
 import { followUser, unfollowUser } from "@/features/social/api";
-import type { ApiResponse, PaginatedUsers, UserSummary } from "@/lib/types";
+import { queryKeys } from "@/lib/query-keys";
+import type { ApiResponse, PaginatedUsers, UserProfile, UserSummary } from "@/lib/types";
 import { isSameUser } from "@/lib/user";
 import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/store/hooks";
@@ -68,20 +70,33 @@ export function UserListDialog<TExtraContext = unknown>({
     onMutate: async ({ nextFollowing, username }) => {
       await queryClient.cancelQueries({ queryKey });
       const previousUsers = queryClient.getQueryData<UsersInfiniteData>(queryKey);
+      const previousProfiles = queryClient.getQueriesData<ApiResponse<UserProfile>>({
+        queryKey: queryKeys.profile.all,
+      });
       const extraContext = await onFollowMutate?.({ nextFollowing, queryClient, username });
+      const delta = nextFollowing ? 1 : -1;
 
       queryClient.setQueryData<UsersInfiniteData>(queryKey, (current) =>
         updateUserFollowState(current, username, nextFollowing),
       );
 
-      return { extraContext, previousUsers };
+      if (viewer?.username && viewer.username !== username) {
+        updateProfileStatQueries(queryClient, viewer.username, "following", delta);
+        updateProfileStatQueries(queryClient, username, "followers", delta);
+      }
+
+      return { extraContext, previousProfiles, previousUsers };
     },
     onError: (_error, _variables, context) => {
       queryClient.setQueryData(queryKey, context?.previousUsers);
+      context?.previousProfiles.forEach(([profileQueryKey, profileData]) => {
+        queryClient.setQueryData(profileQueryKey, profileData);
+      });
       onFollowError?.({ context: context?.extraContext, queryClient });
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile.all });
       invalidateQueryKeys.forEach((key) => {
         void queryClient.invalidateQueries({ queryKey: key });
       });
