@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useLogout } from "@/features/auth/use-logout";
+import { getPost } from "@/features/posts/api";
 import { getMe, getMyLikes, getMyPosts, getMySaved } from "@/features/profile/api";
 import {
   applyProfileStatDelta,
@@ -153,6 +154,13 @@ export function ProfileView(props: ProfileViewProps) {
     initialPageParam: 1,
     getNextPageParam: getNextTimelinePageParam,
   });
+  const selectedPostNeedsDetail = selectedPost ? shouldFetchPostDetail(selectedPost) : false;
+  const selectedPostDetailQuery = useQuery({
+    queryKey: selectedPost ? queryKeys.posts.detail(selectedPost.id) : queryKeys.posts.detail("selected-post"),
+    queryFn: () => getPost(selectedPost?.id ?? ""),
+    enabled: selectedPostNeedsDetail,
+  });
+  const selectedPostForDialog = selectedPostDetailQuery.data?.data ?? selectedPost;
 
   const followMutation = useMutation({
     mutationFn: ({ nextFollowing, username }: { nextFollowing: boolean; username: string }) =>
@@ -314,7 +322,7 @@ export function ProfileView(props: ProfileViewProps) {
         ) : null}
       </section>
 
-      {selectedPost ? (
+      {selectedPostForDialog ? (
         <CommentsDialog
           onOpenChange={(open) => {
             if (!open) {
@@ -322,7 +330,7 @@ export function ProfileView(props: ProfileViewProps) {
             }
           }}
           open={Boolean(selectedPost)}
-          post={selectedPost}
+          post={selectedPostForDialog}
         />
       ) : null}
 
@@ -565,13 +573,7 @@ function ProfilePostsContent({
             onClick={() => onPostClick(post)}
             type="button"
           >
-            <Image
-              alt={post.caption ?? "Sociality post image"}
-              className="object-cover transition-transform duration-300 hover:scale-105"
-              fill
-              sizes="(max-width: 640px) 33vw, 270px"
-              src={post.imageUrl}
-            />
+            <ProfilePostImage post={post} />
           </button>
         ))}
       </div>
@@ -591,6 +593,18 @@ function ProfilePostsContent({
         </div>
       ) : null}
     </>
+  );
+}
+
+function ProfilePostImage({ post }: { post: Post }) {
+  return (
+    <Image
+      alt={post.caption ?? "Sociality post image"}
+      className="object-cover transition-transform duration-300 hover:scale-105"
+      fill
+      sizes="(max-width: 640px) 33vw, 270px"
+      src={post.imageUrl}
+    />
   );
 }
 
@@ -703,6 +717,10 @@ function ProfileAvatar({ className, profile }: { className?: string; profile: Us
       )}
     </div>
   );
+}
+
+function shouldFetchPostDetail(post: Post) {
+  return post.author.id === 0 && post.author.username === "unknown";
 }
 
 function getProfilePostsQueryKey(props: ProfileViewProps, isOwnProfile: boolean, activeTab: ProfileTab) {

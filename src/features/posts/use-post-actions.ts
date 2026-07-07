@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import { updateProfileStatQueries } from "@/features/profile/profile-stats";
 import { likePost, savePost, unlikePost, unsavePost } from "@/features/social/api";
 import { updateTimelinePostQueries, type TimelineInfiniteData } from "@/features/timeline/timeline-cache";
+import { getTimelinePosts } from "@/features/timeline/timeline-data";
 import { queryKeys } from "@/lib/query-keys";
-import type { ApiResponse, Post, UserProfile } from "@/lib/types";
+import type { ApiResponse, Pagination, Post, UserProfile } from "@/lib/types";
 import { useAppSelector } from "@/store/hooks";
 
 type CacheSnapshot = Array<[QueryKey, unknown]>;
@@ -57,6 +58,7 @@ export function usePostActions(post: Post) {
         ...currentPost,
         savedByMe: nextSaved,
       }));
+      updateSavedPostsQuery(queryClient, post, nextSaved);
 
       return { previousPostCaches };
     },
@@ -127,4 +129,56 @@ function restoreCacheSnapshot(queryClient: QueryClient, snapshot: CacheSnapshot 
   snapshot?.forEach(([queryKey, data]) => {
     queryClient.setQueryData(queryKey, data);
   });
+}
+
+function updateSavedPostsQuery(queryClient: QueryClient, post: Post, nextSaved: boolean) {
+  queryClient.setQueryData<TimelineInfiniteData>(queryKeys.profilePosts.me("saved"), (data) => {
+    if (!data && !nextSaved) {
+      return data;
+    }
+
+    const currentPosts = data?.pages.flatMap(getTimelinePosts) ?? [];
+    const alreadySaved = currentPosts.some((currentPost) => currentPost.id === post.id);
+    const nextPosts = nextSaved
+      ? [{ ...post, savedByMe: true }, ...currentPosts.filter((currentPost) => currentPost.id !== post.id)]
+      : currentPosts.filter((currentPost) => currentPost.id !== post.id);
+    const currentPagination = getFirstPagination(data);
+    const totalDelta = nextSaved && !alreadySaved ? 1 : !nextSaved && alreadySaved ? -1 : 0;
+    const total =
+      currentPagination?.total !== undefined
+        ? Math.max(0, currentPagination.total + totalDelta)
+        : nextPosts.length;
+    const limit = currentPagination?.limit && currentPagination.limit > 0
+      ? currentPagination.limit
+      : Math.max(nextPosts.length, 1);
+
+    return {
+      pageParams: [data?.pageParams[0] ?? 1],
+      pages: [
+        {
+          data: {
+            posts: nextPosts,
+            pagination: {
+              limit,
+              page: currentPagination?.page ?? 1,
+              total,
+              totalPages: Math.max(1, Math.ceil(total / limit)),
+            },
+          },
+          message: data?.pages[0]?.message ?? "OK",
+          success: data?.pages[0]?.success ?? true,
+        },
+      ],
+    };
+  });
+}
+
+function getFirstPagination(data: TimelineInfiniteData | undefined): Pagination | null {
+  const pagination = data?.pages[0]?.data.pagination;
+
+  if (!pagination) {
+    return null;
+  }
+
+  return pagination;
 }

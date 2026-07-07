@@ -71,7 +71,6 @@ export function EditProfileView() {
 
         formData.set("name", values.name);
         formData.set("username", values.username);
-        formData.set("email", values.email);
         formData.set("phone", values.phone?.trim() ?? "");
         formData.set("bio", values.bio?.trim() ?? "");
         formData.set("avatar", avatar);
@@ -81,15 +80,23 @@ export function EditProfileView() {
 
       return updateMe({
         bio: values.bio?.trim() || undefined,
-        email: values.email,
         name: values.name,
         phone: values.phone?.trim() || undefined,
         username: values.username,
       });
     },
     onSuccess: (response) => {
-      dispatch(setUser(response.data));
-      queryClient.setQueryData(queryKeys.profile.me(), response);
+      const nextUser = {
+        ...response.data,
+        email: response.data.email ?? profile?.email ?? viewer?.email,
+      };
+      const nextResponse = {
+        ...response,
+        data: nextUser,
+      };
+
+      dispatch(setUser(nextUser));
+      queryClient.setQueryData(queryKeys.profile.me(), nextResponse);
       void queryClient.invalidateQueries({ queryKey: queryKeys.profile.all });
       window.sessionStorage.setItem(PROFILE_SUCCESS_STORAGE_KEY, "1");
       router.push("/me");
@@ -140,6 +147,7 @@ export function EditProfileView() {
 
   const avatarSrc = avatarPreview ?? profile?.avatarUrl;
   const displayName = profile?.name ?? "Profile";
+  const registeredEmail = profile?.email ?? viewer?.email ?? "";
 
   return (
     <>
@@ -221,12 +229,13 @@ export function EditProfileView() {
                 />
               </ProfileField>
 
-              <ProfileField error={errors.email?.message} label="Email">
+              <ProfileField label="Email">
                 <Input
-                  className={getInputClassName(Boolean(errors.email))}
+                  className={cn(getInputClassName(false), "cursor-not-allowed opacity-70")}
                   placeholder="johndoe@email.com"
+                  readOnly
                   type="email"
-                  {...register("email")}
+                  value={registeredEmail}
                 />
               </ProfileField>
 
@@ -323,7 +332,6 @@ function toProfileFormValues(profile?: UserProfile | null): ProfileFormValues {
   return {
     avatarUrl: profile?.avatarUrl ?? "",
     bio: profile?.bio ?? "",
-    email: profile?.email ?? "",
     name: profile?.name ?? "",
     phone: profile?.phone ?? "",
     username: profile?.username ?? "",

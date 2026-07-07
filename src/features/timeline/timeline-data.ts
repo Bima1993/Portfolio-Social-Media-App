@@ -1,4 +1,4 @@
-import type { ApiResponse, PaginatedPosts, Pagination, Post } from "@/lib/types";
+import type { ApiResponse, PaginatedPosts, Pagination, Post, UserSummary } from "@/lib/types";
 
 const POST_COLLECTION_KEYS = [
   "posts",
@@ -15,7 +15,7 @@ const POST_COLLECTION_KEYS = [
 ] as const;
 
 export function getTimelinePosts(page: ApiResponse<PaginatedPosts>) {
-  return extractPostCandidates(page.data).filter(isTimelinePost);
+  return extractPostCandidates(page.data).map(toTimelinePost).filter(isPost);
 }
 
 export function getNextTimelinePageParam(lastPage: ApiResponse<PaginatedPosts>) {
@@ -108,12 +108,54 @@ function toPagination(value: unknown): Pagination | null {
   };
 }
 
-function isTimelinePost(value: unknown): value is Post {
-  if (!isRecord(value) || value.id === undefined || value.id === null) {
-    return false;
+function toTimelinePost(value: unknown): Post | null {
+  if (!isRecord(value) || value.id === undefined || value.id === null || typeof value.imageUrl !== "string") {
+    return null;
   }
 
-  return typeof value.imageUrl === "string" && isRecord(value.author) && typeof value.author.username === "string";
+  return {
+    id: Number(value.id),
+    imageUrl: value.imageUrl,
+    caption: typeof value.caption === "string" ? value.caption : null,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date(0).toISOString(),
+    author: toUserSummary(value.author),
+    likeCount: toNumber(value.likeCount),
+    commentCount: toNumber(value.commentCount),
+    likedByMe: Boolean(value.likedByMe),
+    savedByMe: value.savedByMe === undefined ? undefined : Boolean(value.savedByMe),
+  };
+}
+
+function toUserSummary(value: unknown): UserSummary {
+  if (isRecord(value) && typeof value.username === "string") {
+    return {
+      id: toNumber(value.id),
+      username: value.username,
+      name: typeof value.name === "string" ? value.name : value.username,
+      avatarUrl: typeof value.avatarUrl === "string" ? value.avatarUrl : null,
+      followsMe: typeof value.followsMe === "boolean" ? value.followsMe : undefined,
+      isFollowedByMe: typeof value.isFollowedByMe === "boolean" ? value.isFollowedByMe : undefined,
+      isFollowing: typeof value.isFollowing === "boolean" ? value.isFollowing : undefined,
+      isMe: typeof value.isMe === "boolean" ? value.isMe : undefined,
+    };
+  }
+
+  return {
+    id: 0,
+    username: "unknown",
+    name: "Unknown user",
+    avatarUrl: null,
+  };
+}
+
+function toNumber(value: unknown) {
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function isPost(value: Post | null): value is Post {
+  return value !== null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
