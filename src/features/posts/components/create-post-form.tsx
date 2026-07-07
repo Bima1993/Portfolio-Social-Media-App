@@ -24,6 +24,7 @@ export function CreatePostForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -57,11 +58,11 @@ export function CreatePostForm() {
 
   useEffect(() => {
     return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
       }
     };
-  }, [previewUrl]);
+  }, []);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -108,13 +109,12 @@ export function CreatePostForm() {
   }
 
   function replacePreviewUrl(nextPreviewUrl: string | null) {
-    setPreviewUrl((currentPreviewUrl) => {
-      if (currentPreviewUrl) {
-        URL.revokeObjectURL(currentPreviewUrl);
-      }
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
 
-      return nextPreviewUrl;
-    });
+    previewUrlRef.current = nextPreviewUrl;
+    setPreviewUrl(nextPreviewUrl);
   }
 
   function resetFileInput() {

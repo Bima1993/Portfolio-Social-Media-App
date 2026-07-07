@@ -31,7 +31,7 @@ export function PostDetailView({ postId }: PostDetailViewProps) {
   return (
     <>
       <PostDetailMobileHeader />
-      <section className="mx-auto w-full max-w-[1200px] px-4 pb-28 pt-6 lg:pb-20 lg:pt-10">
+      <section className="mx-auto w-full max-w-[1200px] px-4 pb-44 pt-6 lg:pb-40 lg:pt-10">
         <header className="mb-8 hidden items-center gap-4 lg:flex">
           <Link
             aria-label="Back to timeline"

@@ -9,10 +9,11 @@ import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { createComment, deleteComment, getComments } from "@/features/social/api";
-import { updateTimelinePostQueries } from "@/features/timeline/timeline-cache";
+import { updateTimelinePostQueries, type TimelineInfiniteData } from "@/features/timeline/timeline-cache";
+import { ApiError } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/date";
 import { queryKeys } from "@/lib/query-keys";
-import type { Comment, Post } from "@/lib/types";
+import type { ApiResponse, Comment, Post } from "@/lib/types";
 import { isSameUser } from "@/lib/user";
 import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/store/hooks";
@@ -78,6 +79,7 @@ export function CommentsSection({
   const viewer = useAppSelector((state) => state.auth.user);
   const isAuthenticated = Boolean(token);
   const [commentText, setCommentText] = useState("");
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const commentsQueryKey = queryKeys.postComments.list(post.id);
   const trimmedComment = commentText.trim();
@@ -92,22 +94,46 @@ export function CommentsSection({
 
   const createCommentMutation = useMutation({
     mutationFn: (text: string) => createComment(post.id, text),
+    onMutate: () => {
+      setCommentError(null);
+    },
     onSuccess: () => {
       setCommentText("");
+      setCommentError(null);
       setEmojiOpen(false);
       updateTimelinePostQueries(queryClient, post.id, (currentPost) => ({
         ...currentPost,
         commentCount: Number(currentPost.commentCount ?? 0) + 1,
       }));
       void queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(post.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });
+    },
+    onError: (error) => {
+      setCommentError(getCommentMutationErrorMessage(error));
     },
   });
 
   const deleteCommentMutation = useMutation({
     mutationFn: (commentId: Comment["id"]) => deleteComment(commentId),
-    onSuccess: (_data, commentId) => {
+    onMutate: async (commentId) => {
+      setCommentError(null);
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: commentsQueryKey }),
+        queryClient.cancelQueries({ queryKey: queryKeys.timeline.all }),
+        queryClient.cancelQueries({ queryKey: queryKeys.profilePosts.all }),
+        queryClient.cancelQueries({ queryKey: queryKeys.posts.detail(post.id) }),
+      ]);
+      const previousComments = queryClient.getQueryData<CommentsInfiniteData>(commentsQueryKey);
+      const previousTimelineQueries = queryClient.getQueriesData<TimelineInfiniteData>({
+        queryKey: queryKeys.timeline.all,
+      });
+      const previousProfilePostQueries = queryClient.getQueriesData<TimelineInfiniteData>({
+        queryKey: queryKeys.profilePosts.all,
+      });
+      const previousPostDetail = queryClient.getQueryData<ApiResponse<Post>>(queryKeys.posts.detail(post.id));
+
       queryClient.setQueryData<CommentsInfiniteData>(commentsQueryKey, (currentData) =>
         removeCommentFromCommentsData(currentData, commentId),
       );
@@ -115,7 +141,26 @@ export function CommentsSection({
         ...currentPost,
         commentCount: Math.max(0, Number(currentPost.commentCount ?? 0) - 1),
       }));
+
+      return { previousComments, previousPostDetail, previousProfilePostQueries, previousTimelineQueries };
+    },
+    onError: (error, _commentId, context) => {
+      queryClient.setQueryData(commentsQueryKey, context?.previousComments);
+      queryClient.setQueryData(queryKeys.posts.detail(post.id), context?.previousPostDetail);
+      context?.previousTimelineQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+      context?.previousProfilePostQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+      setCommentError(getCommentMutationErrorMessage(error));
+    },
+    onSuccess: () => {
+      setCommentError(null);
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(post.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.timeline.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.profilePosts.all });
     },
@@ -215,6 +260,11 @@ export function CommentsSection({
 
       <div className={cn("border-t border-border py-4", footerClassName)}>
         {footer ? <div className="mb-4">{footer}</div> : null}
+        {commentError ? (
+          <p className="mb-3 text-sm font-medium text-[#d51b62]" role="alert">
+            {commentError}
+          </p>
+        ) : null}
 
         <form className="relative flex items-center gap-2" onSubmit={handleSubmit}>
           {showEmojiPicker && emojiOpen ? (
@@ -254,7 +304,9 @@ export function CommentsSection({
             )}
           >
             <input
+              aria-label="Add comment"
               className="h-full min-w-0 flex-1 bg-transparent px-4 text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground"
+              maxLength={500}
               onChange={(event) => setCommentText(event.target.value)}
               placeholder="Add Comment"
               ref={inputRef}
@@ -272,6 +324,18 @@ export function CommentsSection({
       </div>
     </div>
   );
+}
+
+function getCommentMutationErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unable to update comments. Please try again.";
 }
 
 function CommentRow({

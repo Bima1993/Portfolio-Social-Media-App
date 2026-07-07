@@ -37,7 +37,7 @@ export function UsersSearchView() {
   const users = useMemo(() => usersQuery.data?.pages.flatMap(getUsers) ?? [], [usersQuery.data]);
 
   return (
-    <section className="mx-auto w-full max-w-[640px] px-4 pb-28 pt-6 lg:pb-20 lg:pt-10">
+    <section className="mx-auto w-full max-w-[640px] px-4 pb-44 pt-6 lg:pb-40 lg:pt-10">
       <header className="mb-6">
         <h1 className="text-2xl font-bold">Search Users</h1>
         <p className="mt-2 text-sm text-muted-foreground">Find people by name or username.</p>

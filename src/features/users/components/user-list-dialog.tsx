@@ -129,6 +129,7 @@ export function UserListDialog<TExtraContext = unknown>({
           </Dialog.Close>
 
           <Dialog.Title className="text-xl font-bold">{title}</Dialog.Title>
+          <Dialog.Description className="sr-only">{emptyMessage}</Dialog.Description>
 
           <div className="mt-5 min-h-0 overflow-y-auto pr-1">
             {usersQuery.isPending ? <UserListSkeleton /> : null}

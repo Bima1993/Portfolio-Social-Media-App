@@ -2,15 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bookmark, Heart, Loader2, MessageCircle, Send, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { PostActionsBar } from "@/features/posts/components/post-actions-bar";
 import { useDeletePost } from "@/features/posts/use-delete-post";
-import { usePostActions } from "@/features/posts/use-post-actions";
 import { formatRelativeTime } from "@/lib/date";
 import type { Post } from "@/lib/types";
 import { isSameUser } from "@/lib/user";
-import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/store/hooks";
 
 import { LikesDialog } from "./likes-dialog";
@@ -25,7 +24,6 @@ export function PostCard({ post }: PostCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const viewer = useAppSelector((state) => state.auth.user);
   const caption = post.caption?.trim();
-  const { isLikePending, isSavePending, savedByMe, toggleLike, toggleSave } = usePostActions(post);
   const deletePostMutation = useDeletePost();
   const canManagePost = isSameUser(viewer, post.author);
   const isDeletingThisPost = deletePostMutation.isDeletingPost && deletePostMutation.deletingPostId === post.id;
@@ -91,56 +89,12 @@ export function PostCard({ post }: PostCardProps) {
           />
         </Link>
 
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <button
-                aria-label={post.likedByMe ? "Unlike post" : "Like post"}
-                className="transition-colors hover:text-[#d51b62] disabled:opacity-60"
-                disabled={isLikePending}
-                onClick={toggleLike}
-                type="button"
-              >
-                <Heart className={cn("size-6", post.likedByMe && "fill-[#d51b62] text-[#d51b62]")} />
-              </button>
-              <button
-                aria-label="View likes"
-                className="text-sm font-semibold transition-colors hover:text-primary"
-                onClick={() => setLikesOpen(true)}
-                type="button"
-              >
-                {post.likeCount}
-              </button>
-            </div>
-            <button
-              aria-label="View comments"
-              className="flex items-center gap-2 text-sm font-semibold transition-colors hover:text-primary"
-              onClick={() => setCommentsOpen(true)}
-              type="button"
-            >
-              <MessageCircle className="size-6" />
-              {post.commentCount}
-            </button>
-            <button
-              className="flex items-center gap-2 text-sm font-semibold transition-colors hover:text-primary"
-              type="button"
-              aria-label="Share post"
-            >
-              <Send className="size-6" />
-              20
-            </button>
-          </div>
-
-          <button
-            aria-label={savedByMe ? "Unsave post" : "Save post"}
-            className="transition-colors hover:text-primary disabled:opacity-60"
-            disabled={isSavePending}
-            onClick={toggleSave}
-            type="button"
-          >
-            <Bookmark className={cn("size-7", savedByMe && "fill-foreground")} />
-          </button>
-        </div>
+        <PostActionsBar
+          className="mt-3"
+          onCommentsClick={() => setCommentsOpen(true)}
+          onLikesClick={() => setLikesOpen(true)}
+          post={post}
+        />
 
         <div className="mt-4 space-y-2 text-[15px] leading-7">
           <Link className="block font-bold" href={`/profile/${post.author.username}`}>

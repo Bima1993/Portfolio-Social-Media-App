@@ -9,11 +9,19 @@ import { usePostActions } from "../use-post-actions";
 
 type PostActionsBarProps = {
   className?: string;
+  onCommentsClick?: () => void;
+  onLikesClick?: () => void;
   post: Post;
   shareCount?: number;
 };
 
-export function PostActionsBar({ className, post, shareCount = 20 }: PostActionsBarProps) {
+export function PostActionsBar({
+  className,
+  onCommentsClick,
+  onLikesClick,
+  post,
+  shareCount = 20,
+}: PostActionsBarProps) {
   const { isLikePending, isSavePending, savedByMe, toggleLike, toggleSave } = usePostActions(post);
 
   return (
@@ -29,13 +37,36 @@ export function PostActionsBar({ className, post, shareCount = 20 }: PostActions
           >
             <Heart className={cn("size-6", post.likedByMe && "fill-[#d51b62] text-[#d51b62]")} />
           </button>
-          <span className="text-sm font-semibold">{post.likeCount}</span>
+          {onLikesClick ? (
+            <button
+              aria-label="View likes"
+              className="text-sm font-semibold transition-colors hover:text-primary"
+              onClick={onLikesClick}
+              type="button"
+            >
+              {post.likeCount}
+            </button>
+          ) : (
+            <span className="text-sm font-semibold">{post.likeCount}</span>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <MessageCircle className="size-6" />
-          {post.commentCount}
-        </div>
+        {onCommentsClick ? (
+          <button
+            aria-label="View comments"
+            className="flex items-center gap-2 text-sm font-semibold transition-colors hover:text-primary"
+            onClick={onCommentsClick}
+            type="button"
+          >
+            <MessageCircle className="size-6" />
+            {post.commentCount}
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <MessageCircle className="size-6" />
+            {post.commentCount}
+          </div>
+        )}
 
         <button
           aria-label="Share post"
