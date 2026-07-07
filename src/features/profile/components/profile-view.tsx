@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { useLogout } from "@/features/auth/use-logout";
 import { getPost } from "@/features/posts/api";
 import { getMe, getMyLikes, getMyPosts, getMySaved } from "@/features/profile/api";
+import { mergeProfileIdentity } from "@/features/profile/profile-cache";
 import {
   applyProfileStatDelta,
   getLoadedPostsLikeTotal,
@@ -106,7 +107,8 @@ export function ProfileView(props: ProfileViewProps) {
         : undefined,
   });
 
-  const profile = profileQuery.data?.data;
+  const profileFromQuery = profileQuery.data?.data;
+  const profile = props.mode === "me" ? mergeOwnProfileWithViewer(profileFromQuery, viewer) : profileFromQuery;
   const isOwnProfile = props.mode === "me" || (Boolean(viewer?.username) && viewer?.username === profile?.username);
   const tabs = useMemo<TabItem[]>(
     () =>
@@ -245,7 +247,7 @@ export function ProfileView(props: ProfileViewProps) {
   return (
     <>
       <ProfileMobileHeader title={profile?.name ?? (props.mode === "me" ? "Profile" : props.username)} />
-      <section className="mx-auto w-full max-w-[812px] px-4 pb-28 pt-6 lg:pb-24 lg:pt-10">
+      <section className="mx-auto w-full max-w-[812px] px-4 pb-44 pt-6 lg:pb-44 lg:pt-10">
         {showSuccessToast ? <ProfileSuccessToast onClose={() => setShowSuccessToast(false)} /> : null}
 
         {profileQuery.isPending ? <ProfileSkeleton /> : null}
@@ -579,7 +581,7 @@ function ProfilePostsContent({
       </div>
 
       {hasNextPage ? (
-        <div className="mt-8 flex justify-center">
+        <div className="mb-8 mt-8 flex justify-center lg:mb-10">
           <Button
             className="h-11 rounded-full px-6"
             disabled={isFetchingNextPage}
@@ -717,6 +719,24 @@ function ProfileAvatar({ className, profile }: { className?: string; profile: Us
       )}
     </div>
   );
+}
+
+function mergeOwnProfileWithViewer(
+  profile: UserProfile | undefined,
+  viewer: UserProfile | null,
+) {
+  if (!viewer) {
+    return profile;
+  }
+
+  if (!profile) {
+    return viewer;
+  }
+
+  return mergeProfileIdentity(profile, {
+    ...viewer,
+    avatarUrl: viewer.avatarUrl ?? profile.avatarUrl,
+  });
 }
 
 function shouldFetchPostDetail(post: Post) {

@@ -1,17 +1,19 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Provider as ReduxProvider } from "react-redux";
 
 import { getMe } from "@/features/profile/api";
 import { ApiError, clearStoredAuthToken, getStoredAuthToken } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import { clearSession, setHydrated, setToken, setUser } from "@/store/auth-slice";
 import { useAppDispatch } from "@/store/hooks";
 import { store } from "@/store";
 
 function AuthBootstrapper() {
   const dispatch = useAppDispatch();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let isMounted = true;
@@ -32,6 +34,7 @@ function AuthBootstrapper() {
 
         if (isMounted) {
           dispatch(setUser(response.data));
+          queryClient.setQueryData(queryKeys.profile.me(), response);
         }
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
@@ -53,7 +56,7 @@ function AuthBootstrapper() {
     return () => {
       isMounted = false;
     };
-  }, [dispatch]);
+  }, [dispatch, queryClient]);
 
   return null;
 }

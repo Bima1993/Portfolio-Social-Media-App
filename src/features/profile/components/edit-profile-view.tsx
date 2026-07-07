@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getMe, updateMe } from "@/features/profile/api";
+import { updateProfileIdentityQueries } from "@/features/profile/profile-cache";
 import { profileSchema, type ProfileFormValues } from "@/features/profile/schemas";
 import { ApiError } from "@/lib/api";
 import { PROFILE_SUCCESS_STORAGE_KEY } from "@/lib/constants";
@@ -86,6 +87,7 @@ export function EditProfileView() {
       });
     },
     onSuccess: (response) => {
+      const previousUsername = profile?.username ?? viewer?.username;
       const nextUser = {
         ...response.data,
         email: response.data.email ?? profile?.email ?? viewer?.email,
@@ -97,6 +99,7 @@ export function EditProfileView() {
 
       dispatch(setUser(nextUser));
       queryClient.setQueryData(queryKeys.profile.me(), nextResponse);
+      updateProfileIdentityQueries(queryClient, nextUser, previousUsername);
       void queryClient.invalidateQueries({ queryKey: queryKeys.profile.all });
       window.sessionStorage.setItem(PROFILE_SUCCESS_STORAGE_KEY, "1");
       router.push("/me");

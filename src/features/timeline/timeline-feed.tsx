@@ -69,7 +69,7 @@ export function TimelineFeed() {
   }, []);
 
   return (
-    <section className="mx-auto w-full max-w-[632px] px-4 pb-28 pt-4 sm:pt-8 lg:pb-16 lg:pt-10">
+    <section className="mx-auto w-full max-w-[632px] px-4 pb-44 pt-4 sm:pt-8 lg:pb-40 lg:pt-10">
       {showPostSuccess ? <PostSuccessToast onClose={() => setShowPostSuccess(false)} /> : null}
 
       <FeedSourcePanel
@@ -121,7 +121,7 @@ export function TimelineFeed() {
       ) : null}
 
       {hasNextPage ? (
-        <div className="mt-8 flex justify-center">
+        <div className="mb-8 mt-8 flex justify-center lg:mb-10">
           <Button
             className="h-11 rounded-full px-6"
             disabled={isFetchingNextPage}
