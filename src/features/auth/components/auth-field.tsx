@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FieldError, UseFormRegisterReturn } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
@@ -24,21 +24,29 @@ export function AuthField({
   registration,
   type = "text",
 }: AuthFieldProps) {
+  const generatedId = useId();
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === "password";
   const inputType = isPassword && showPassword ? "text" : type;
+  const inputId = `${registration.name}-${generatedId}`;
+  const errorId = `${inputId}-error`;
 
   return (
-    <label className="block">
-      <span className="text-sm font-bold text-foreground">{label}</span>
+    <div className="block">
+      <label className="text-sm font-bold text-foreground" htmlFor={inputId}>
+        {label}
+      </label>
       <span className="relative mt-2 block">
         <Input
+          aria-describedby={error ? errorId : undefined}
+          aria-invalid={Boolean(error)}
           autoComplete={autoComplete}
           className={cn(
             "h-12 rounded-xl border-border bg-secondary px-4 text-base font-medium text-foreground placeholder:text-muted-foreground focus-visible:ring-0",
             isPassword && "pr-12",
             error && "border-[#d51b62] focus-visible:border-[#d51b62]",
           )}
+          id={inputId}
           placeholder={placeholder}
           type={inputType}
           {...registration}
@@ -54,7 +62,11 @@ export function AuthField({
           </button>
         ) : null}
       </span>
-      {error ? <span className="mt-2 block text-sm text-[#d51b62]">{error.message}</span> : null}
-    </label>
+      {error ? (
+        <span className="mt-2 block text-sm text-[#d51b62]" id={errorId} role="alert">
+          {error.message}
+        </span>
+      ) : null}
+    </div>
   );
 }

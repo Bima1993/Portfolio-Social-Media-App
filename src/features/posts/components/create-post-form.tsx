@@ -1,13 +1,16 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpToLine, Loader2, Trash2, UploadCloud } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createPost } from "@/features/posts/api";
+import { createPostSchema, type CreatePostFormValues } from "@/features/posts/schemas";
 import { updateProfileStatQueries } from "@/features/profile/profile-stats";
 import { ApiError } from "@/lib/api";
 import { POST_SUCCESS_STORAGE_KEY } from "@/lib/constants";
@@ -21,13 +24,21 @@ export function CreatePostForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [caption, setCaption] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [captionError, setCaptionError] = useState<string | null>(null);
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+  } = useForm<CreatePostFormValues>({
+    defaultValues: {
+      caption: "",
+    },
+    resolver: zodResolver(createPostSchema),
+  });
 
   const createPostMutation = useMutation({
     mutationFn: createPost,
@@ -79,21 +90,31 @@ export function CreatePostForm() {
     if (validationError) {
       setImageError(validationError);
       setSelectedFile(null);
-      setPreviewUrl(null);
+      replacePreviewUrl(null);
       resetFileInput();
       return;
     }
 
     setImageError(null);
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    replacePreviewUrl(URL.createObjectURL(file));
   }
 
   function deleteImage() {
     setImageError(null);
     setSelectedFile(null);
-    setPreviewUrl(null);
+    replacePreviewUrl(null);
     resetFileInput();
+  }
+
+  function replacePreviewUrl(nextPreviewUrl: string | null) {
+    setPreviewUrl((currentPreviewUrl) => {
+      if (currentPreviewUrl) {
+        URL.revokeObjectURL(currentPreviewUrl);
+      }
+
+      return nextPreviewUrl;
+    });
   }
 
   function resetFileInput() {
@@ -102,38 +123,21 @@ export function CreatePostForm() {
     }
   }
 
-  function validateForm() {
-    let isValid = true;
-
+  function onSubmit(values: CreatePostFormValues) {
+    setFormError(null);
     if (!selectedFile) {
       setImageError("Photo is required.");
-      isValid = false;
-    }
-
-    if (!caption.trim()) {
-      setCaptionError("Caption is required.");
-      isValid = false;
-    }
-
-    return isValid;
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(null);
-
-    if (!validateForm() || !selectedFile) {
       return;
     }
 
     createPostMutation.mutate({
-      caption: caption.trim(),
+      caption: values.caption.trim(),
       image: selectedFile,
     });
   }
 
   return (
-    <form className="grid gap-5" onSubmit={handleSubmit}>
+    <form className="grid gap-5" onSubmit={handleSubmit(onSubmit)}>
       <div className="grid gap-2">
         <label className="text-base font-bold" htmlFor="post-image">
           Photo
@@ -207,7 +211,11 @@ export function CreatePostForm() {
           type="file"
         />
 
-        {imageError ? <p className="text-sm font-medium text-[#d51b62]">{imageError}</p> : null}
+        {imageError ? (
+          <p className="text-sm font-medium text-[#d51b62]" role="alert">
+            {imageError}
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-2">
@@ -217,24 +225,31 @@ export function CreatePostForm() {
         <Textarea
           className={cn(
             "min-h-24 resize-none rounded-lg border-border bg-secondary px-4 py-3 text-base leading-7 placeholder:text-muted-foreground focus-visible:ring-primary sm:min-h-[184px]",
-            captionError && "border-[#d51b62] focus-visible:ring-[#d51b62]",
+            errors.caption && "border-[#d51b62] focus-visible:ring-[#d51b62]",
           )}
           id="post-caption"
           maxLength={1200}
-          onChange={(event) => {
-            setCaption(event.target.value);
-            if (captionError) {
-              setCaptionError(null);
-            }
-          }}
           placeholder="Create your caption"
-          value={caption}
+          {...register("caption", {
+            onChange: () => {
+              if (formError) {
+                setFormError(null);
+              }
+            },
+          })}
         />
-        {captionError ? <p className="text-sm font-medium text-[#d51b62]">{captionError}</p> : null}
+        {errors.caption?.message ? (
+          <p className="text-sm font-medium text-[#d51b62]" role="alert">
+            {errors.caption.message}
+          </p>
+        ) : null}
       </div>
 
       {formError ? (
-        <p className="rounded-lg border border-[#d51b62]/50 bg-[#d51b62]/10 px-4 py-3 text-sm font-medium text-[#ff4f93]">
+        <p
+          className="rounded-lg border border-[#d51b62]/50 bg-[#d51b62]/10 px-4 py-3 text-sm font-medium text-[#ff4f93]"
+          role="alert"
+        >
           {formError}
         </p>
       ) : null}

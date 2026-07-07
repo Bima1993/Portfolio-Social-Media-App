@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { AppHeader } from "@/components/layout/app-header";
 import { BottomNavigation } from "@/components/layout/bottom-navigation";
 import { ProfileView } from "@/features/profile/components/profile-view";
@@ -7,6 +9,15 @@ type PublicProfilePageProps = {
     username: string;
   }>;
 };
+
+export async function generateMetadata({ params }: PublicProfilePageProps): Promise<Metadata> {
+  const { username } = await params;
+
+  return {
+    title: `${username} | Sociality`,
+    description: `View ${username}'s Sociality profile.`,
+  };
+}
 
 export default async function PublicProfilePage({ params }: PublicProfilePageProps) {
   const { username } = await params;
